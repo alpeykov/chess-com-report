@@ -10,6 +10,7 @@ import collections
 import io
 import json
 import pathlib
+import sys
 import chess
 import chess.pgn
 from engine import search, material_for, MATE
@@ -158,7 +159,7 @@ def summary(rows):
         "tilt": tilt(rows), "openings": openings(rows),
         "by_quarter": [dict(range=[c[0]["n"], c[-1]["n"]], dates=[c[0]["date"], c[-1]["date"]], **rec(c),
                             rating=[c[0]["my_elo"], c[-1]["my_elo"]])
-                       for c in (rows[i:i + max(1, len(rows) // 4)] for i in range(0, len(rows), max(1, len(rows) // 4))) if c],
+                       for c in (rows[len(rows) * k // 4:len(rows) * (k + 1) // 4] for k in range(4)) if c],
     }
 
 
@@ -166,11 +167,24 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("username")
     ap.add_argument("--dir", required=True)
+    ap.add_argument("--time-class", default="main",
+                    help="main (default: only the most played time class), all, or bullet/blitz/rapid/daily")
     a = ap.parse_args()
     out = pathlib.Path(a.dir)
     rows = rows_from((out / "games.pgn").read_text(encoding="utf-8"), a.username.strip().lower())
     if not rows:
         raise SystemExit("No games of this user in games.pgn")
+    if a.time_class != "all":
+        tc = collections.Counter(r["time_class"] for r in rows).most_common(1)[0][0] if a.time_class == "main" else a.time_class
+        dropped = collections.Counter(r["time_class"] for r in rows if r["time_class"] != tc)
+        rows = [r for r in rows if r["time_class"] == tc]
+        for n, r in enumerate(rows, 1):
+            r["n"] = n
+        if dropped:
+            print(f"Only {tc} games are counted; left out: {dict(dropped)} (use --time-class all to keep them)",
+                  file=sys.stderr)
+        if not rows:
+            raise SystemExit(f"No {tc} games found")
     s = summary(rows)
     (out / "games.json").write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
     (out / "summary.json").write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
