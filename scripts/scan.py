@@ -1,9 +1,10 @@
 """Find mistakes and missed chances with the small engine.
 
 Whole history (player's moves only):
-  python scan.py USERNAME --dir OUT [--games 120] [--depth 3]
-  -> OUT/flagged.json: moves where the player lost material or missed a win/mate, sorted by size,
-     each verified at depth 5 with the best line ("line") and what happened after the played move ("after").
+  python scan.py USERNAME --dir OUT [--games N] [--depth 3] [--jobs N]
+  -> OUT/flagged.json: moves where the player lost material or missed a win/mate, sorted by size.
+     All games are scanned by default (--games N limits it to the last N), in parallel on all CPU cores.
+     The biggest items (--verify-top, default 200) are re-checked at depth 5 with the best line ("line") and what happened after the played move ("after").
 
 One game (both sides, every move printed):
   python scan.py USERNAME --dir OUT --pgn OUT/last.pgn
@@ -14,6 +15,8 @@ BEFORE the move (0 = the first move of the game). In the step-through viewer the
 move is frame ply+1. White's move N is ply 2N-2, Black's move N is ply 2N-1.
 """
 import argparse
+import multiprocessing
+import os
 import io
 import json
 import pathlib
@@ -53,28 +56,44 @@ def scan_game(game, me, depth, both_sides=False, verbose=False):
     return out
 
 
-def verify(items, depth=5):
-    for f in items:
-        b = chess.Board(f["fen"])
-        played = b.parse_san(f["played"])
-        best, bm, ps = best_and_played(b, played, depth=depth)
-        f.update(best_score=best, played_score=ps, best=b.san(bm), line=" ".join(pv(b, depth)))
-        after = b.copy()
-        after.push(played)
-        f["after"] = " ".join(pv(after, depth - 1))
-        f["confirmed"] = best - ps >= 2 or (best > 900 and ps < 900)
-        f["kind"] = classify(b, best, ps)
-    return items
+def verify_one(f, depth=5):
+    b = chess.Board(f["fen"])
+    played = b.parse_san(f["played"])
+    best, bm, ps = best_and_played(b, played, depth=depth)
+    f.update(best_score=best, played_score=ps, best=b.san(bm), line=" ".join(pv(b, depth)))
+    after = b.copy()
+    after.push(played)
+    f["after"] = " ".join(pv(after, depth - 1))
+    f["confirmed"] = best - ps >= 2 or (best > 900 and ps < 900)
+    f["kind"] = classify(b, best, ps)
+    return f
+
+
+def verify(items, depth=5, pool=None):
+    if pool is None:
+        return [verify_one(f, depth) for f in items]
+    return pool.map(verify_one, items)
+
+
+def _scan_job(args):
+    pgn_text, row, me, depth = args
+    g = chess.pgn.read_game(io.StringIO(pgn_text))
+    out = scan_game(g, me, depth)
+    for f in out:
+        f.update(game=row["n"], opp=row["opp"], date=row["date"], color=row["color"], outcome=row["outcome"],
+                 link=row["link"])
+    return out
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("username")
     ap.add_argument("--dir", required=True)
-    ap.add_argument("--games", type=int, default=120, help="scan only the last N games (default 120)")
+    ap.add_argument("--games", type=int, default=0, help="scan only the last N games (default: all)")
+    ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="parallel processes (default: all cores)")
     ap.add_argument("--depth", type=int, default=3)
     ap.add_argument("--pgn", help="scan a single game, both sides")
-    ap.add_argument("--verify-top", type=int, default=60)
+    ap.add_argument("--verify-top", type=int, default=200)
     a = ap.parse_args()
     me = a.username.strip().lower()
     out = pathlib.Path(a.dir)
@@ -96,17 +115,21 @@ def main():
     while (g := chess.pgn.read_game(pgn)) is not None:
         r = by_link.get(g.headers.get("Link", ""))
         if r:
-            games.append((r, g))
+            games.append((r, str(g)))
     games.sort(key=lambda x: x[0]["n"])
-    games = games[-a.games:]
+    if a.games:
+        games = games[-a.games:]
     flagged = []
-    for k, (r, g) in enumerate(games, 1):
-        for f in scan_game(g, me, a.depth):
-            f.update(game=r["n"], opp=r["opp"], date=r["date"], color=r["color"], outcome=r["outcome"], link=r["link"])
-            flagged.append(f)
-        print(f"scanned {k}/{len(games)}", file=sys.stderr, flush=True)
-    flagged.sort(key=lambda f: -f["drop"])
-    verify(flagged[:a.verify_top])
+    jobs = [(text, r, me, a.depth) for r, text in games]
+    with multiprocessing.Pool(max(1, a.jobs)) as pool:
+        for k, out_items in enumerate(pool.imap_unordered(_scan_job, jobs), 1):
+            flagged.extend(out_items)
+            if k % 10 == 0 or k == len(jobs):
+                print(f"scanned {k}/{len(jobs)}", file=sys.stderr, flush=True)
+        flagged.sort(key=lambda f: -f["drop"])
+        top = verify(flagged[:a.verify_top], pool=pool)
+        flagged = top + flagged[a.verify_top:]
+        print(f"verified {len(top)} at depth 5", file=sys.stderr, flush=True)
     flagged = [f for f in flagged if f.get("confirmed", True)]
     kinds = {}
     for f in flagged:
