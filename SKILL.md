@@ -9,7 +9,7 @@ Input: a chess.com **username** and a **report language** (`en`, `fr`, `bg`). If
 
 Reports are **multi-language by default**: `"langs": [main, the other two]` (main language first, e.g. `["bg", "en", "fr"]`), and every text field in the spec is `{"bg": ..., "en": ..., "fr": ...}`. The page shows flag buttons at the top and remembers the reader's choice (`?lang=en` in the URL also works). Write all three versions yourself; keep chess notation identical across them.
 
-Look: dark blue theme (Archivo font) over a faded chess scene drawn in SVG (`board_svg.background_svg`, spec `background`), a wooden board with metal pieces and coordinates on all four sides (`scripts/board_svg.py`), a collapsible contents card with coloured numbered badges that highlights the section in view, numbered section cards and a back-to-top button.
+Look: dark blue theme (Archivo font) over a faded chess scene drawn in SVG (`board_svg.background_svg`, spec `background`), a wooden board with metal pieces and coordinates on all four sides (`scripts/board_svg.py`; boards are drawn in the browser from compact position data, textures are small pictures in `assets/`), a collapsible contents card with coloured numbered badges that highlights the section in view, numbered section cards and a back-to-top button.
 
 Output: one self-contained `report.html` (dark theme, step-through boards, rating chart, no external files), saved where the user asks (default: `~/Downloads/chess-report-<username>/report.html`).
 

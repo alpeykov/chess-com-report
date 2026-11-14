@@ -230,7 +230,7 @@ nav.toc-card a{display:flex;align-items:center;gap:10px;text-decoration:none;col
 border-left:3px solid transparent;transition:background .2s,border-color .2s,padding-left .2s}
 nav.toc-card a .num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#0c1117;background:var(--c);flex:none}
 nav.toc-card a:hover,nav.toc-card a.active{background:color-mix(in srgb,var(--c) 12%,var(--surface));border-left-color:var(--c);padding-left:14px}
-section.card{background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--c);border-radius:14px;padding:4px 24px 20px;margin:22px 0;scroll-margin-top:14px}
+section.card{content-visibility:auto;contain-intrinsic-size:auto 900px;background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--c);border-radius:14px;padding:4px 24px 20px;margin:22px 0;scroll-margin-top:14px}
 section.card>h2,section.card>details>summary>h2{display:flex;align-items:center;gap:12px;border:0;margin:16px 0 12px;padding:0}
 h2 .num{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;color:#0c1117;font-size:16px;font-weight:800;
 background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 60%,#000))}
@@ -257,7 +257,7 @@ JS = """
     let i = 0, timer = null;
     function show(n){
       i = Math.max(0, Math.min(fr.length - 1, n));
-      board.innerHTML = fr[i].svg; moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
+      board.innerHTML = boardSVG(fr[i], v.o); moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
       cap.innerHTML = fr[i].caption[lang];
       const ply = fr[i].ply;
       count.textContent = (ply === 0 ? L.start : L.move + ' ' + Math.ceil(ply / 2) + (ply % 2 ? '.' : '...')) + ' · ' + (i + 1) + ' / ' + fr.length;
@@ -290,7 +290,7 @@ JS = """
   document.querySelectorAll('.chart-wrap').forEach(function(wrap){
     const L = LBL[wrap.closest('main').dataset.lang];
     const svg = wrap.querySelector('svg'), tip = wrap.querySelector('.chart-tip'),
-          data = JSON.parse(wrap.querySelector('.chart-data').textContent),
+          data = JSON.parse(document.getElementById('chart-data').textContent),
           guide = svg.querySelector('.guide'), hot = svg.querySelector('.hot'), hit = svg.querySelector('.hit');
     const esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); };
     let cur = -1;
@@ -376,8 +376,17 @@ JS = """
     onScroll();
   }
   function openTarget(id){ const el = id && document.getElementById(id); if (el && el.tagName === 'DETAILS') el.open = true; }
-  document.querySelectorAll('nav.toc-card a').forEach(function(a){ a.addEventListener('click', function(){ openTarget(a.getAttribute('href').slice(1)); }); });
-  openTarget(location.hash.slice(1));
+  // sections off screen are not rendered (content-visibility), so their height is only estimated:
+  // jump, let them render, then correct the position
+  function go(id, smooth){
+    const el = id && document.getElementById(id); if (!el) return;
+    openTarget(id);
+    el.scrollIntoView({behavior: smooth ? 'smooth' : 'auto'});
+    setTimeout(function(){ el.scrollIntoView({behavior: 'auto'}); }, smooth ? 700 : 120);
+  }
+  document.querySelectorAll('nav.toc-card a').forEach(function(a){ a.addEventListener('click', function(e){
+    e.preventDefault(); const id = a.getAttribute('href').slice(1); history.replaceState(null, '', '#' + id); go(id, true); }); });
+  if (location.hash) setTimeout(function(){ go(location.hash.slice(1), false); }, 60);
 })();
 """
 
@@ -387,7 +396,7 @@ def _bg_scene(variant):
     import urllib.parse
     if not variant or variant == "none":
         return "none"
-    return 'url("data:image/svg+xml,' + urllib.parse.quote(board_svg.background_svg(variant)) + '")'
+    return 'url("' + board_svg.background_uri(variant) + '")'
 
 
 def _bg_piece(sym):
@@ -432,10 +441,15 @@ def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None,
         caption = notes.get(str(k), caption)  # a caption stays until the next note
         if k < from_ply:
             continue
-        check = b.king(b.turn) if b.is_check() else None
-        arr = [(chess.parse_square(a), chess.parse_square(z), c) for a, z, c in arrows.get(str(k), [])]
-        fill = {chess.parse_square(s): c for s, c in fills.get(str(k), {}).items()}
-        svg = board_svg.render(b, orient, b.peek() if b.move_stack else None, check, arr, fill)
+        pos = {"fen": b.board_fen()}  # drawn in the browser by boardSVG() (board_svg.JS_BOARD)
+        if b.move_stack:
+            pos["lm"] = b.peek().uci()[:4]
+        if b.is_check():
+            pos["ck"] = chess.square_name(b.king(b.turn))
+        if arrows.get(str(k)):
+            pos["ar"] = arrows[str(k)]
+        if fills.get(str(k)):
+            pos["fl"] = fills[str(k)]
         start = max(0, k - 8)
         tmp = chess.Board()
         for m in moves[:start]:
@@ -446,7 +460,7 @@ def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None,
             w, c = words.get(lang), tr(caption, lang, langs[0])
             caps[lang] = w(c) if w else c
             lines[lang] = w(line, True) if w else line
-        out.append({"svg": svg, "moves": lines, "caption": caps, "ply": k})
+        out.append(dict(pos, moves=lines, caption=caps, ply=k))
     return out
 
 
@@ -556,7 +570,7 @@ def main():
         orient = chess.BLACK if v.get("orientation", "white") == "black" else chess.WHITE
         fr = frames(src, orient, v.get("notes", {}), v.get("arrows", {}), v.get("fills", {}),
                     v.get("from_ply", 0), v.get("to_ply"), langs, words)
-        vdata[vid] = {"frames": fr, "start": v.get("start_index", 0)}
+        vdata[vid] = {"frames": fr, "start": v.get("start_index", 0), "o": "b" if orient == chess.BLACK else "w"}
 
     def block(lang):
         L, T = LL[lang], (lambda v: tr(v, lang, first))
@@ -610,6 +624,10 @@ def main():
         return f'<main data-lang="{lang}" lang="{lang}">{content}</main>'
 
     mains = "".join(block(lang) for lang in langs)
+    # the chart data is the same in every language: keep one copy
+    chart_json = re.findall(r'<script type="application/json" class="chart-data">(.*?)</script>', mains, re.S)
+    mains = re.sub(r'<script type="application/json" class="chart-data">.*?</script>', "", mains, flags=re.S)
+    shared = f'<script type="application/json" id="chart-data">{chart_json[0]}</script>' if chart_json else ""
     switcher = ""
     if len(langs) > 1:
         switcher = ('<div class="langbar" role="group" aria-label="Language">' + "".join(
@@ -627,9 +645,9 @@ def main():
             f'<title>{H.escape(tr(spec.get("page_title", spec["title"]), first, first))}</title><link rel="icon" type="image/svg+xml" href="{icon}">'
             f'{fonts}<style>{CSS.replace("BGSCENE", _bg_scene(spec.get("background", "night")))}</style></head><body><div class="page">{switcher}{mains}</div>'
             f'<button type="button" id="to-top" aria-label="{LL[first]["top"]}">&#8593;</button>'
-            f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{board_svg.DEFS}</svg>'
+            f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{board_svg.page_defs()}</svg>'
             f'<script type="application/json" id="labels">{json.dumps(LL, ensure_ascii=False)}</script>'
-            f'<script type="application/json" id="viewer-data">{payload}</script><script>{JS}</script></body></html>')
+            f'{shared}<script type="application/json" id="viewer-data">{payload}</script><script>{board_svg.JS_BOARD}{JS}</script></body></html>')
     dest = pathlib.Path(a.out or out / "report.html")
     dest.write_text(page, encoding="utf-8")
     counts = ", ".join("%s=%d" % (k, len(v["frames"])) for k, v in vdata.items())

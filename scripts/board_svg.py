@@ -4,6 +4,8 @@ DEFS goes into the page once (piece shapes, wood textures, gradients); render() 
 that refers to them with <use>. Pieces are the python-chess (Colin M.L. Burnett) shapes with a silver / dark-steel
 finish; the board has maple and walnut squares with grain and a dark wooden frame with coordinates on all sides.
 """
+import base64
+import pathlib
 import re
 import chess
 import chess.svg
@@ -29,29 +31,79 @@ def _piece_symbol(sym):
     return f'<symbol id="pc-{sym}" viewBox="0 0 45 45">{svg}</symbol>'
 
 
+ASSETS = pathlib.Path(__file__).resolve().parent.parent / "assets"
+
+
+def asset_uri(name):
+    """data: URI of a picture in the skill's assets folder (pre-rendered WebP, see assets/README.md)."""
+    return "data:image/webp;base64," + base64.b64encode((ASSETS / name).read_bytes()).decode()
+
+
+# Wood and frame textures are small pre-rendered pictures: a live SVG noise filter looks the same but makes
+# the browser repaint every visible board while scrolling.
 DEFS = (
     "<defs>"
     '<linearGradient id="mW" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/>'
     '<stop offset=".4" stop-color="#e4e6ea"/><stop offset=".72" stop-color="#a9adb4"/><stop offset="1" stop-color="#f1f2f4"/></linearGradient>'
     '<linearGradient id="mB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a9099"/>'
     '<stop offset=".33" stop-color="#3a3e45"/><stop offset=".7" stop-color="#16181c"/><stop offset="1" stop-color="#4c5159"/></linearGradient>'
-    '<filter id="pcShadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx=".6" dy="1.4" stdDeviation=".9" '
-    'flood-color="#000" flood-opacity=".55"/></filter>'
-    '<filter id="grainH" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.006 0.21" '
-    'numOctaves="3" seed="4"/><feColorMatrix values="0 0 0 0 .35  0 0 0 0 .2  0 0 0 0 .08  0 0 0 -1.6 1.15"/></filter>'
-    '<filter id="grainV" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.21 0.006" '
-    'numOctaves="3" seed="11"/><feColorMatrix values="0 0 0 0 .2  0 0 0 0 .1  0 0 0 0 .03  0 0 0 -1.6 1.15"/></filter>'
     f'<pattern id="woodL" patternUnits="userSpaceOnUse" x="{M}" y="{M}" width="{8 * S}" height="{8 * S}">'
-    f'<rect width="{8 * S}" height="{8 * S}" fill="#e6c79a"/><rect width="{8 * S}" height="{8 * S}" filter="url(#grainH)" opacity=".38"/></pattern>'
+    f'<image href="{{L}}" width="{8 * S}" height="{8 * S}" preserveAspectRatio="none"/></pattern>'
     f'<pattern id="woodD" patternUnits="userSpaceOnUse" x="{M}" y="{M}" width="{8 * S}" height="{8 * S}">'
-    f'<rect width="{8 * S}" height="{8 * S}" fill="#a86e3e"/><rect width="{8 * S}" height="{8 * S}" filter="url(#grainV)" opacity=".42"/></pattern>'
+    f'<image href="{{D}}" width="{8 * S}" height="{8 * S}" preserveAspectRatio="none"/></pattern>'
     f'<pattern id="woodF" patternUnits="userSpaceOnUse" width="{N}" height="{N}">'
-    f'<rect width="{N}" height="{N}" fill="#4a2e1b"/><rect width="{N}" height="{N}" filter="url(#grainH)" opacity=".5"/></pattern>'
+    f'<image href="{{F}}" width="{N}" height="{N}" preserveAspectRatio="none"/></pattern>'
     '<radialGradient id="checkGlow"><stop offset="0" stop-color="#ff3b30" stop-opacity=".95"/>'
     '<stop offset=".55" stop-color="#ff3b30" stop-opacity=".45"/><stop offset="1" stop-color="#ff3b30" stop-opacity="0"/></radialGradient>'
     + "".join(_piece_symbol(s) for s in "KQRBNPkqrbnp")
     + "</defs>"
 )
+
+
+def page_defs():
+    """DEFS with the textures filled in (call once per page)."""
+    return (DEFS.replace("{L}", asset_uri("wood-light.webp")).replace("{D}", asset_uri("wood-dark.webp"))
+            .replace("{F}", asset_uri("wood-frame.webp")))
+
+
+# The same board drawn in the browser from a few bytes per position (see JS_BOARD); render() below is the
+# Python version, kept for tests and other uses.
+JS_BOARD = r"""
+function boardSVG(f, o){
+  const S=40, M=20, N=360, AC={green:'#2f9e44',red:'#e03131',blue:'#3b82f6',yellow:'#f2b01e'},
+        FC={green:'rgba(47,158,68,.45)',red:'rgba(224,49,49,.45)',blue:'rgba(59,130,246,.45)',yellow:'rgba(242,176,30,.5)'};
+  const xy=function(sq){ const fi=sq.charCodeAt(0)-97, r=+sq[1]-1; return o==='b' ? [M+(7-fi)*S, M+r*S] : [M+fi*S, M+(7-r)*S]; };
+  let dark=''; for (let r=0;r<8;r++) for (let c=0;c<8;c++) if ((r+c)%2===1) dark+='M'+(M+c*S)+' '+(M+r*S)+'h40v40h-40z';
+  const h=['<svg viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg" class="wb"><rect width="360" height="360" rx="7" fill="url(#woodF)"/>',
+    '<rect x="18" y="18" width="324" height="324" fill="#24150c"/><rect x="20" y="20" width="320" height="320" fill="url(#woodL)"/>',
+    '<path d="'+dark+'" fill="url(#woodD)"/>'];
+  const sqr=function(sq,fill){ const p=xy(sq); h.push('<rect x="'+p[0]+'" y="'+p[1]+'" width="40" height="40" fill="'+fill+'"/>'); };
+  if (f.lm) { sqr(f.lm.slice(0,2),'rgba(255,206,64,.45)'); sqr(f.lm.slice(2,4),'rgba(255,206,64,.45)'); }
+  for (const k in (f.fl||{})) sqr(k, FC[f.fl[k]]||f.fl[k]);
+  if (f.ck) sqr(f.ck,'url(#checkGlow)');
+  const files=o==='b'?'hgfedcba':'abcdefgh', ranks=o==='b'?'12345678':'87654321';
+  let lab=''; for (let i=0;i<8;i++){ const c=M+i*S+S/2;
+    lab+='<text x="'+c+'" y="14">'+files[i]+'</text><text x="'+c+'" y="355">'+files[i]+'</text><text x="10" y="'+(c+4)+'">'+ranks[i]+'</text><text x="350" y="'+(c+4)+'">'+ranks[i]+'</text>'; }
+  h.push('<g fill="#e9d6b6" font-family="Archivo,system-ui,sans-serif" font-size="11" font-weight="700" text-anchor="middle">'+lab+'</g>');
+  let sh='', pcs='', r=7, c=0;
+  for (const ch of f.fen) {
+    if (ch==='/') { r--; c=0; continue; }
+    if (ch>='1' && ch<='8') { c+=+ch; continue; }
+    const p=xy(String.fromCharCode(97+c)+(r+1));
+    sh+='<ellipse cx="'+(p[0]+21)+'" cy="'+(p[1]+35.5)+'" rx="12.5" ry="3.2"/>';
+    pcs+='<use href="#pc-'+ch+'" x="'+p[0]+'" y="'+p[1]+'" width="40" height="40"/>';
+    c++;
+  }
+  h.push('<g fill="rgba(0,0,0,.38)">'+sh+'</g>'+pcs);
+  (f.ar||[]).forEach(function(a){
+    const p1=xy(a[0]), p2=xy(a[1]), x1=p1[0]+20, y1=p1[1]+20, x2=p2[0]+20, y2=p2[1]+20, col=AC[a[2]]||a[2];
+    const dx=x2-x1, dy=y2-y1, ln=Math.max(1e-6,Math.hypot(dx,dy)), ux=dx/ln, uy=dy/ln, hx=x2-ux*13, hy=y2-uy*13, px=-uy*8, py=ux*8;
+    h.push('<g opacity=".85"><line x1="'+x1+'" y1="'+y1+'" x2="'+hx+'" y2="'+hy+'" stroke="'+col+'" stroke-width="7" stroke-linecap="round"/>'
+      +'<polygon points="'+x2+','+y2+' '+(hx+px)+','+(hy+py)+' '+(hx-px)+','+(hy-py)+'" fill="'+col+'"/></g>');
+  });
+  h.push('</svg>'); return h.join('');
+}
+"""
 
 
 def _xy(sq, orient):
@@ -106,7 +158,7 @@ def render(board, orient=chess.WHITE, lastmove=None, check=None, arrows=(), fill
     for sq, p in board.piece_map().items():
         x, y = _xy(sq, orient)
         pcs.append(f'<use href="#pc-{p.symbol()}" x="{x}" y="{y}" width="{S}" height="{S}"/>')
-    out.append(f'<g filter="url(#pcShadow)">{"".join(pcs)}</g>')
+    out.append("".join(pcs))
     out.extend(_arrow(a, z, c, orient) for a, z, c in arrows)
     out.append("</svg>")
     return "".join(out)
@@ -141,6 +193,11 @@ def _piece(p, x, y, size, color, blur=0, op=1.0, rim=False):
     f = ' filter="url(#rim)"' if rim else (f' filter="url(#bl{blur})"' if blur else "")
     return (f'<use href="#b{p}" x="{x - size / 2:.1f}" y="{y - size * 0.9:.1f}" width="{size:.1f}" height="{size:.1f}" '
             f'color="{color}"{f} opacity="{op}"/>')
+
+
+def background_uri(variant="night"):
+    """The pre-rendered background scene (assets/bg-<variant>.webp) as a data: URI."""
+    return asset_uri(f"bg-{variant}.webp")
 
 
 def background_svg(variant="fog", seed=7):
