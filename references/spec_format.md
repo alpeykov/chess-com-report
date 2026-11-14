@@ -67,3 +67,7 @@ and `<code>Bxe4?</code>` (left in standard notation).
 ## Sections and contents
 
 Section titles may start with their number ("3. Openings"): the number goes into the coloured badge and the contents card. The game analysis gets a knight badge and comes first. `toc_title` is the short name used in the contents card.
+
+## Tabs
+
+`<div class="tabs"><div class="tab" data-tab="bg" data-label="Български">…</div><div class="tab" data-tab="en" data-label="English">…</div></div>` turns into flag buttons; the tab whose `data-tab` matches the page language opens first (otherwise the first tab).

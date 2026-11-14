@@ -245,12 +245,14 @@ font:800 20px var(--font);cursor:pointer;opacity:0;pointer-events:none;transitio
 #to-top.show,#to-next.show{opacity:1;pointer-events:auto}#to-top{bottom:70px}
 @media (max-width:600px){section.card{padding:4px 14px 14px}nav.toc-card ol{grid-template-columns:1fr}}
 @media print{#to-top,#to-next,.langbar{display:none}section.card{break-inside:auto}}
+.tabs .tab-btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px;border-bottom:1px solid var(--border);padding-bottom:8px}.tabs .tab-btns button{display:inline-flex;align-items:center;gap:8px;font:700 14px var(--font);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border-strong);border-radius:99px;padding:6px 14px;cursor:pointer}.tabs .tab-btns button svg{width:20px;height:13px;border-radius:2px}.tabs .tab-btns button[aria-selected="true"]{background:var(--accent-soft);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--accent)}.tabs .tab[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 """
 
 JS = """
 (function(){
   const LBL = JSON.parse(document.getElementById('labels').textContent);
+  const FLAGS = JSON.parse(document.getElementById('flags').textContent);
   function evalGraph(root, ev, ply, L, jump){
     let g = root.querySelector('.v-eval');
     if (!g) { g = document.createElement('div'); g.className = 'v-eval'; root.querySelector('.v-board').after(g);
@@ -407,6 +409,22 @@ JS = """
     topBtn.addEventListener('click', function(){ window.scrollTo({top: 0}); });
     onScroll();
   }
+  // tabs: <div class="tabs"><div class="tab" data-tab="bg" data-label="..">..</div>...</div>; the tab in the page's language opens first
+  document.querySelectorAll('.tabs').forEach(function(box){
+    const lang = box.closest('main').dataset.lang, tabs = Array.prototype.slice.call(box.querySelectorAll(':scope > .tab'));
+    const bar = document.createElement('div'); bar.className = 'tab-btns'; bar.setAttribute('role', 'tablist');
+    tabs.forEach(function(tb){
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab'); b.dataset.tab = tb.dataset.tab;
+      b.innerHTML = (FLAGS[tb.dataset.tab] || '') + '<span></span>'; b.lastChild.textContent = tb.dataset.label || tb.dataset.tab;
+      b.addEventListener('click', function(){ pick(tb.dataset.tab); }); bar.appendChild(b);
+    });
+    box.insertBefore(bar, box.firstChild);
+    function pick(k){
+      tabs.forEach(function(tb){ tb.hidden = tb.dataset.tab !== k; });
+      bar.querySelectorAll('button').forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.tab === k)); });
+    }
+    pick(tabs.some(function(tb){ return tb.dataset.tab === lang; }) ? lang : tabs[0].dataset.tab);
+  });
   function openTarget(id){
     const el = id && document.getElementById(id); if (!el) return;
     const d = el.tagName === 'DETAILS' ? el : el.querySelector(':scope > details.fold'); if (d) d.open = true;
@@ -697,6 +715,7 @@ def main():
             f'<button type="button" id="to-next" aria-label="{LL[first]["next_section"]}" title="{LL[first]["next_section"]}">&#8595;</button>'
             f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{board_svg.page_defs()}</svg>'
             f'<script type="application/json" id="labels">{json.dumps(LL, ensure_ascii=False)}</script>'
+            f'<script type="application/json" id="flags">{json.dumps(FLAGS)}</script>'
             f'{shared}<script type="application/json" id="viewer-data">{payload}</script><script>{board_svg.JS_BOARD}{JS}</script></body></html>')
     dest = pathlib.Path(a.out or out / "report.html")
     dest.write_text(page, encoding="utf-8")
