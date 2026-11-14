@@ -153,11 +153,15 @@ FLAGS = {
 LANG_NAMES = {"bg": "Български", "en": "English", "fr": "Français"}
 
 CSS = """
-:root{color-scheme:dark;--page:#0c1117;--surface:#151d27;--surface-2:#10161e;--side:#182540;--side-line:#34507e;
+:root{color-scheme:dark;--bg-knight:BGKNIGHT;--bg-king:BGKING;--page:#0c1117;--surface:#151d27;--surface-2:#10161e;--side:#182540;--side-line:#34507e;
 --ink:#e8edf2;--ink-2:#c3ccd6;--muted:#93a1ae;--accent:#6d9dff;--accent-soft:#1c2b45;--accent-ink:#9dbcff;--on-accent:#0c1117;
 --good:#4cc38a;--bad:#e5574c;--warn:#f0a64a;--border:#263241;--border-strong:#34465c;--hover:#1c2b45;--grid:#1c2633;--axis:#34465c;
 --series:#6d9dff;--font:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace}
-*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:16px/1.55 var(--font)}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.55 var(--font);background-color:var(--page);background-image:radial-gradient(ellipse 90% 60% at 50% -10%,rgba(31,95,214,.30),transparent 70%),radial-gradient(ellipse 70% 50% at 100% 110%,rgba(109,157,255,.14),transparent 70%),repeating-conic-gradient(#101a28 0 25%,#0b121c 0 50%);background-size:auto,auto,72px 72px;background-attachment:fixed}
+body::before,body::after{content:"";position:fixed;z-index:0;pointer-events:none;background-repeat:no-repeat;background-size:contain;opacity:.09}
+body::before{width:min(46vw,520px);height:min(46vw,520px);right:-4vw;bottom:-3vw;background-image:var(--bg-knight)}
+body::after{width:min(30vw,340px);height:min(30vw,340px);left:-3vw;top:18vh;background-image:var(--bg-king);opacity:.06}
+.page,#to-top{position:relative;z-index:1}#to-top{position:fixed}
 .page{max-width:1120px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px));position:relative}
 .langbar{position:absolute;top:28px;right:max(16px,env(safe-area-inset-right,0px));display:inline-flex;gap:2px;padding:3px;border-radius:10px;
 background:var(--surface);border:1px solid var(--border-strong);z-index:3}
@@ -377,6 +381,15 @@ JS = """
   openTarget(location.hash.slice(1));
 })();
 """
+
+
+def _bg_piece(sym):
+    """A large, flat piece silhouette in the accent colour for the page background (CSS url())."""
+    import urllib.parse
+    g = re.sub(r'(fill|stroke)="#(?:fff|000)"|(fill|stroke):#(?:ffffff|000000)', lambda m: (m.group(1) or m.group(2)) + ('="#6d9dff"' if m.group(1) else ":#6d9dff"),
+               chess.svg.PIECES[sym])
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">{g}</svg>'
+    return 'url("data:image/svg+xml,' + urllib.parse.quote(svg) + '")'
 
 
 def load_games(out):
@@ -603,7 +616,7 @@ def main():
     page = (f'<!doctype html><html lang="{first}"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
             f'<title>{H.escape(tr(spec.get("page_title", spec["title"]), first, first))}</title><link rel="icon" type="image/svg+xml" href="{icon}">'
-            f'{fonts}<style>{CSS}</style></head><body><div class="page">{switcher}{mains}</div>'
+            f'{fonts}<style>{CSS.replace("BGKNIGHT", _bg_piece("N")).replace("BGKING", _bg_piece("K"))}</style></head><body><div class="page">{switcher}{mains}</div>'
             f'<button type="button" id="to-top" aria-label="{LL[first]["top"]}">&#8593;</button>'
             f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{board_svg.DEFS}</svg>'
             f'<script type="application/json" id="labels">{json.dumps(LL, ensure_ascii=False)}</script>'
