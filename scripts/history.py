@@ -5,6 +5,7 @@
   python history.py --dir OUT --add-at N DATE add a past report by hand (game number N in games.json, date YYYY.MM.DD)
 
 Run --add after each full report or "regenerate the report" (not after "analyze the last game").
+A second --add on the same day replaces that day's checkpoint.
 The report's progress section compares: before the 1st report, between reports, since the last one, last 50 games.
 """
 import argparse
@@ -43,6 +44,8 @@ def main():
     h = load(a.dir)
     if a.add:
         s = json.loads((pathlib.Path(a.dir) / "summary.json").read_text(encoding="utf-8"))
+        # a second regeneration on the same day moves that day's checkpoint instead of adding a tiny period
+        h["reports"] = [r for r in h["reports"] if r["date"] != s["last_date"]]
         h["reports"].append({"games": s["games"], "date": s["last_date"]})
     if a.add_at:
         h["reports"].append({"games": int(a.add_at[0]), "date": a.add_at[1]})
