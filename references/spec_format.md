@@ -6,6 +6,8 @@
 {
   "lang": "fr",                       // en | fr | bg (button/chart labels); other languages: add "labels"
   "labels": {"move": "Zug"},          // optional overrides of the built-in labels
+  "piece_words": "both",              // optional: true = moves written with piece names ("Bxe4" -> "Fou prend e4"),
+                                      // "both" = names plus the standard notation in grey, {"Q": "..."} = own words
   "title": "Rapport d'échecs : USERNAME",
   "page_title": "Échecs USERNAME",    // optional, browser tab
   "subtitle": "383 parties · 1er mars – 13 nov. 2026",
@@ -49,3 +51,11 @@ Keys of `notes`/`arrows`/`fills` are frame numbers = plies played (see SKILL.md 
 - `{{GOTO:id:ply:text}}`: button that shows that viewer at frame `ply`.
 
 Useful layout classes: `vgrid` (grid of boards), `lg` (two columns: board + text), `scroll` (wrap tables), `panel`, `callout`, `bars`/`bar`/`track`/`fill`/`pct` (horizontal score bars, add `low` to `fill` for weak values), `tag w|l|n`, `hint`, `sub`.
+
+## Piece names
+
+With `piece_words`, every move in captions, tables and the board's move line is written with piece names in the
+report language (bg: Цар, Царица, Топ, Офицер, Кон, пешка; "x" -> "взима"; O-O -> "рокада"). Pawn pushes such as
+`e4` are named only after a move number or next to another move, so a square in a sentence stays a square.
+To show the two side by side in a table, put the move twice: `<span class="words-only">Bxe4?</span>` (names only)
+and `<code>Bxe4?</code>` (left in standard notation).

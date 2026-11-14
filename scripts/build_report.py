@@ -21,6 +21,7 @@ COLORS = {"square light": "#f0d9b5", "square dark": "#b58863",
           "square light lastmove": "#f6eb72", "square dark lastmove": "#dcc34b"}
 ARROW = {"green": "#15781B90", "red": "#D0201090", "blue": "#2050C080", "yellow": "#E0A00090"}
 DEFS_RE = re.compile(r"<defs>.*?</defs>", re.S)
+WORDS = None  # set in main() when spec["piece_words"] is on
 
 LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
@@ -38,6 +39,94 @@ LABELS = {
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
                game_analysis="Анализ на партия"),
 }
+
+PIECE_WORDS = {
+    "en": dict(K="King", Q="Queen", R="Rook", B="Bishop", N="Knight", takes="takes", pawn="pawn", short="castles",
+               long="castles long"),
+    "fr": dict(K="Roi", Q="Dame", R="Tour", B="Fou", N="Cavalier", takes="prend", pawn="pion", short="petit roque",
+               long="grand roque"),
+    "bg": dict(K="Цар", Q="Царица", R="Топ", B="Офицер", N="Кон", takes="взима", pawn="пешка", short="рокада",
+               long="дълга рокада"),
+}
+TAG_RE = re.compile(r"(<[^>]+>)")
+TOK_RE = re.compile(r"^(?P<pre>[(\[\"„“]*)(?P<num>\d+\.(?:\.\.)?)?(?P<core>[^\s]*?)(?P<ann>[+#]?[!?]*)(?P<punct>[.,;:)\]\"“”]*)$")
+PIECE_RE = re.compile(r"^(?:(O-O-O|O-O)|([KQRBN])([a-h]?[1-8]?)(x?)([a-h][1-8])|([a-h])x([a-h][1-8])(?:=([QRBN]))?)$")
+PAWN_RE = re.compile(r"^([a-h][1-8])(?:=([QRBN]))?$")
+
+
+def words_for(spec):
+    """Write SAN moves in visible text with piece names.
+    spec["piece_words"]: true -> names only ("Bxe4" -> "Bishop takes e4"); "both" -> names followed by the standard
+    notation in small grey type; a dict overrides PIECE_WORDS[lang]. Text inside <code>...</code> is left as is
+    and text inside <span class="words-only"> gets names without the grey notation, so a table can show the
+    two in separate columns. Pawn pushes (e4) are named only after a move number or next to
+    another move, so a plain square in a sentence ("the bishop on e4") stays as it is."""
+    pw = spec.get("piece_words")
+    if not pw:
+        return None
+    w = dict(PIECE_WORDS.get(spec.get("lang", "en"), PIECE_WORDS["en"]))
+    if isinstance(pw, dict):
+        w.update(pw)
+    both = pw == "both" or (isinstance(pw, dict) and pw.get("both"))
+
+    def name(core, pawn_ok):
+        m = PIECE_RE.match(core)
+        if m:
+            castle, pc, dis, x, to, pf, pto, prom = m.groups()
+            if castle:
+                return w["long"] if castle == "O-O-O" else w["short"]
+            if pc:
+                return f"{w[pc]}{' (' + dis + ')' if dis else ''} {w['takes'] + ' ' if x else ''}{to}"
+            return f"{w['pawn']} {pf} {w['takes']} {pto}{'=' + w[prom] if prom else ''}"
+        m = PAWN_RE.match(core)
+        if m and pawn_ok:
+            return f"{w['pawn']} {m.group(1)}{'=' + w[m.group(2)] if m.group(2) else ''}"
+        return None
+
+    def text(s, html, all_moves, names_only=False):
+        parts = re.split(r"(\s+)", s)
+        toks = [TOK_RE.match(x) if x and not x.isspace() else None for x in parts]
+        movish = [bool(m and (PIECE_RE.match(m["core"]) or m["num"])) for m in toks]
+        stop = [bool(m and m["punct"]) for m in toks]  # "e3," ends a move sequence
+        out = []
+        for i, (x, m) in enumerate(zip(parts, toks)):
+            if not m:
+                out.append(x)
+                continue
+            pj = next((j for j in range(i - 1, -1, -1) if toks[j]), None)
+            nj = next((j for j in range(i + 1, len(parts)) if toks[j]), None)
+            prev = pj is not None and movish[pj] and not stop[pj]
+            nxt = nj is not None and movish[nj] and not m["punct"]
+            nm = name(m["core"], all_moves or bool(m["num"]) or prev or nxt)
+            if nm is None:
+                out.append(x)
+                continue
+            san = f"{m['num'] or ''}{m['core']}{m['ann']}"
+            extra = (f' <span class="san">({san})</span>' if html else f" ({san})") if both and not names_only else ""
+            out.append(f"{m['pre']}{m['num'] or ''}{nm}{m['ann']}{extra}{m['punct']}")
+        return "".join(out)
+
+    def apply(s, all_moves=False):
+        if all_moves:  # plain-text move list for the board header
+            return text(s, False, True)
+        out, stack = [], []  # stack of "code" / "words" / "" for open <code> and <span> tags
+        for part in TAG_RE.split(s):
+            if part.startswith("<"):
+                low = part.lower()
+                if low.startswith("<code"):
+                    stack.append("code")
+                elif low.startswith("<span"):
+                    stack.append("words" if "words-only" in low else "")
+                elif low.startswith(("</code", "</span")) and stack:
+                    stack.pop()
+                out.append(part)
+            elif "code" in stack:
+                out.append(part)
+            else:
+                out.append(text(part, True, False, names_only="words" in stack))
+        return "".join(out)
+    return apply
+
 
 CSS = """
 :root{color-scheme:dark;--page:#262421;--surface:#312e2b;--surface-2:#1f1d1b;--ink:#f0efec;--ink-2:#c9c7bf;--muted:#8f8c84;
@@ -75,7 +164,7 @@ details.fold>summary h2{display:flex;align-items:center;gap:10px}
 details.fold>summary h2::after{content:"";width:9px;height:9px;margin-left:auto;flex:none;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform .2s}
 details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 .goto{font:inherit;font-weight:700;color:var(--series);background:none;border:0;border-bottom:1px dashed currentColor;padding:0;cursor:pointer}
-.goto:hover{color:var(--ink)}html{scroll-behavior:smooth}
+.goto:hover{color:var(--ink)}.san{color:var(--muted);font-size:.85em;font-family:Consolas,ui-monospace,monospace}code{font:600 13px Consolas,ui-monospace,monospace;color:var(--accent-ink)}html{scroll-behavior:smooth}
 .chart{width:100%;height:auto;display:block}.chart .grid{stroke:var(--grid)}.chart .axis{stroke:var(--axis)}
 .chart .tick{fill:var(--muted);font:12px system-ui,sans-serif}.chart .line{fill:none;stroke:var(--series);stroke-width:1.6}
 .chart .dot.win{fill:var(--good)}.chart .dot.loss{fill:var(--bad)}.chart .dot.draw{fill:var(--muted)}.chart .pt:hover .dot{r:5}
@@ -180,7 +269,8 @@ def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None)
         for m in moves[:start]:
             tmp.push(m)
         line = ("... " if start else "") + tmp.variation_san(moves[start:k]) if k else ""
-        out.append({"svg": DEFS_RE.sub("", svg, count=1), "moves": line, "caption": caption, "ply": k})
+        out.append({"svg": DEFS_RE.sub("", svg, count=1), "moves": WORDS(line, True) if WORDS else line,
+                    "caption": WORDS(caption) if WORDS else caption, "ply": k})
     return out
 
 
@@ -237,6 +327,8 @@ def main():
     L = dict(LABELS["en"])
     L.update(LABELS.get(spec.get("lang", "en"), {}))
     L.update(spec.get("labels", {}))
+    global WORDS
+    WORDS = words_for(spec)
     rows, pgns = load_games(out)
     by_n = {r["n"]: r for r in rows}
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8")) if (out / "summary.json").exists() else {}
@@ -287,6 +379,8 @@ def main():
     if spec.get("footer_html"):
         body.append(f'<p class="hint" style="margin-top:32px">{spec["footer_html"]}</p>')
     content = fill(head + "".join(body))
+    if WORDS:
+        content = WORDS(content)
     leftover = re.search(r"\{\{[^}]*\}\}", content)
     assert not leftover, f"unresolved placeholder: {leftover.group(0)}"
 

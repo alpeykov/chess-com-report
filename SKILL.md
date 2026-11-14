@@ -62,4 +62,5 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
 - A GOTO button for "move N" should normally point to the **decision position** (before the move), so the reader can look for the better move.
 - In tables, mark moves with `?` (mistake), `??` (blunder), `!` (good), `?!` (dubious) and colour tags `<span class="tag w|l|n">`.
 - Write for a club player: short sentences, no engine scores, name squares and pieces, explain *why* a move fails.
+- Notation: if the user finds SAN hard to read, set `"piece_words": "both"` (names plus standard notation) or `true` (names only); in key-moment tables give separate columns with `<span class="words-only">` and `<code>` (see references/spec_format.md).
 - Language: everything the reader sees (titles, captions, tables, buttons) is in the chosen language; chess notation stays in English SAN.
