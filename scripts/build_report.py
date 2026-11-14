@@ -40,19 +40,19 @@ LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
-               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", collapse="Hide", expand="Show",
+               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", next_section="Next section", collapse="Hide", expand="Show",
                tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
-               game_analysis="Dernière partie", top="Haut de page", collapse="Masquer", expand="Afficher",
+               game_analysis="Dernière partie", top="Haut de page", next_section="Section suivante", collapse="Masquer", expand="Afficher",
                tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
-               game_analysis="Последна партия", top="Към началото", collapse="Скрий", expand="Покажи",
+               game_analysis="Последна партия", top="Към началото", next_section="Следващ раздел", collapse="Скрий", expand="Покажи",
                tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
@@ -160,7 +160,7 @@ CSS = """
 *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.55 var(--font);background:var(--page)}
 body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:var(--scene) center bottom/cover no-repeat}
 body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:linear-gradient(180deg,rgba(12,17,23,.35) 0%,rgba(12,17,23,.55) 55%,rgba(12,17,23,.25) 100%)}
-.page,#to-top{position:relative;z-index:1}#to-top{position:fixed}
+.page,#to-top,#to-next{position:relative;z-index:1}#to-top,#to-next{position:fixed}
 .page{max-width:1120px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px));position:relative}
 .langbar{position:absolute;top:28px;right:max(16px,env(safe-area-inset-right,0px));display:inline-flex;gap:2px;padding:3px;border-radius:10px;
 background:var(--surface);border:1px solid var(--border-strong);z-index:3}
@@ -236,11 +236,11 @@ h2 .num{width:34px;height:34px;border-radius:10px;display:grid;place-items:cente
 background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 60%,#000))}
 section.card h3{color:var(--c)}
 section.card .tile,section.card .viewer{background:var(--surface-2)}
-#to-top{position:fixed;right:18px;bottom:18px;width:44px;height:44px;border-radius:50%;border:1px solid var(--border-strong);background:var(--accent);color:var(--on-accent);
+#to-top,#to-next{position:fixed;right:18px;bottom:18px;width:44px;height:44px;border-radius:50%;border:1px solid var(--border-strong);background:var(--accent);color:var(--on-accent);
 font:800 20px var(--font);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s;box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:6}
-#to-top.show{opacity:1;pointer-events:auto}
+#to-top.show,#to-next.show{opacity:1;pointer-events:auto}#to-top{bottom:70px}
 @media (max-width:600px){section.card{padding:4px 14px 14px}nav.toc-card ol{grid-template-columns:1fr}}
-@media print{#to-top,.langbar{display:none}section.card{break-inside:auto}}
+@media print{#to-top,#to-next,.langbar{display:none}section.card{break-inside:auto}}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 """
 
@@ -347,6 +347,7 @@ JS = """
     document.querySelectorAll('main[data-lang]').forEach(function(m){ m.hidden = m.dataset.lang !== l; });
     document.querySelectorAll('.langbar button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.lang === l)); });
     document.documentElement.lang = l;
+    [['to-top', 'top'], ['to-next', 'next_section']].forEach(function(b){ const e = document.getElementById(b[0]); if (e) { e.title = LBL[l][b[1]]; e.setAttribute('aria-label', LBL[l][b[1]]); } });
     const h1 = document.querySelector('main[data-lang="' + l + '"] h1'); if (h1) document.title = h1.textContent;
     try { localStorage.setItem('chess-report-lang', l); } catch (e) {}
   }
@@ -368,9 +369,23 @@ JS = """
     }, {rootMargin: '-20% 0px -70% 0px'});
     document.querySelectorAll('section.card[id]').forEach(function(s){ io.observe(s); });
   }
-  const topBtn = document.getElementById('to-top');
+  const topBtn = document.getElementById('to-top'), nextBtn = document.getElementById('to-next');
+  function nextSection(){
+    const main = document.querySelector('main:not([hidden])');
+    const secs = main ? main.querySelectorAll('section.card') : [];
+    for (let k = 0; k < secs.length; k++) if (secs[k].getBoundingClientRect().top > 90) return secs[k];
+    return null;
+  }
+  if (nextBtn) nextBtn.addEventListener('click', function(){
+    const s = nextSection();
+    if (s) { s.scrollIntoView({behavior: 'smooth'}); setTimeout(function(){ s.scrollIntoView({behavior: 'auto'}); }, 700); }
+    else window.scrollTo({top: document.documentElement.scrollHeight, behavior: 'smooth'});
+  });
   if (topBtn) {
-    const onScroll = function(){ topBtn.classList.toggle('show', window.scrollY > 500); };
+    const onScroll = function(){
+      topBtn.classList.toggle('show', window.scrollY > 500);
+      if (nextBtn) nextBtn.classList.toggle('show', window.innerHeight + window.scrollY < document.documentElement.scrollHeight - 40);
+    };
     window.addEventListener('scroll', onScroll, {passive: true});
     topBtn.addEventListener('click', function(){ window.scrollTo({top: 0}); });
     onScroll();
@@ -644,7 +659,8 @@ def main():
             f'<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
             f'<title>{H.escape(tr(spec.get("page_title", spec["title"]), first, first))}</title><link rel="icon" type="image/svg+xml" href="{icon}">'
             f'{fonts}<style>{CSS.replace("BGSCENE", _bg_scene(spec.get("background", "night")))}</style></head><body><div class="page">{switcher}{mains}</div>'
-            f'<button type="button" id="to-top" aria-label="{LL[first]["top"]}">&#8593;</button>'
+            f'<button type="button" id="to-top" aria-label="{LL[first]["top"]}" title="{LL[first]["top"]}">&#8593;</button>'
+            f'<button type="button" id="to-next" aria-label="{LL[first]["next_section"]}" title="{LL[first]["next_section"]}">&#8595;</button>'
             f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{board_svg.page_defs()}</svg>'
             f'<script type="application/json" id="labels">{json.dumps(LL, ensure_ascii=False)}</script>'
             f'{shared}<script type="application/json" id="viewer-data">{payload}</script><script>{board_svg.JS_BOARD}{JS}</script></body></html>')
