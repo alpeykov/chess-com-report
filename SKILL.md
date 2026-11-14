@@ -58,6 +58,7 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
    5. Recurring tactical mistakes: one subsection per pattern with boards from `flagged.json`, the verified line in the caption, and one habit to fix it.
    6. Missed wins: missed mates and free material.
    7. Plan: 3-5 concrete habits ranked by points saved, plus what is already working.
+   In the key-moment table the last column („Обяснение“ / Explanation) must be specific and complete: the winning chances before → after (from `sf_last.json`), what the played move did or failed to do (which piece, which square, which threat), the idea of the better move with its concrete line, and what the opponent could or did do next. Never just "better move" or "lost material".
    Plus `game_analysis` for the last game: summary (2-3 sentences), key-moment table (move, played, better, what happened) where each move number is a `{{GOTO:game:PLY:N}}` button, "what you did well", one lesson linked to a general habit. Board orientation = the player's colour.
 
 6. **Build and check**
