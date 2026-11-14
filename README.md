@@ -17,7 +17,9 @@ The deeper analysis (accuracy, move classes, evaluation graph, clock, motifs, pu
 - **Linux (Debian/Ubuntu):** `sudo apt install stockfish` (installs `/usr/games/stockfish`), or download `stockfish-ubuntu-x86-64-avx2.tar` from the release page, unpack it and set `STOCKFISH_PATH`.
 - **macOS:** `brew install stockfish`.
 
-Check: `python -c "import sys; sys.path.insert(0, 'scripts'); import sf_engine; print(sf_engine.find_stockfish())"` prints the path. Without Stockfish the report still works with the built-in material engine.
+Check: `python -c "import sys; sys.path.insert(0, 'scripts'); import sf_engine; print(sf_engine.find_stockfish())"` prints the path.
+
+Update: `python scripts/update_stockfish.py` installs the latest release in place of the old one (`--check` only reports). The skill runs it before every "analyze the last game" and "regenerate the report". Without Stockfish the report still works with the built-in material engine.
 
 ## Use
 
@@ -37,4 +39,5 @@ See [SKILL.md](SKILL.md) for the workflow and [references/spec_format.md](refere
 | `build_report.py` | Assemble the HTML report from `report_spec.json` |
 | `engine.py` | Small material search (alpha-beta and quiescence), no Stockfish needed |
 | `sf_engine.py`, `sf_scan.py` | Stockfish analysis: accuracy, move classes, phases, clock, motifs, opening exit, puzzles |
+| `update_stockfish.py` | Check for a newer Stockfish release and install it |
 | `board_svg.py` | Board, pieces and background scenes |
