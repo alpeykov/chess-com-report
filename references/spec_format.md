@@ -6,6 +6,8 @@
 {
   "langs": ["bg", "en", "fr"],        // first = default; then every text field may be {"bg": .., "en": .., "fr": ..}
   "lang": "fr",                       // single-language reports only (used when "langs" is missing)
+  "background": "night",              // faded chess scene behind the page: night (default) | fog | king | none
+  "score_note": {"bg": "...", ...},   // optional line under the tiles explaining how the score % is counted
   "labels": {"move": "Zug"},          // optional overrides of the built-in labels
   "piece_words": "both",              // optional: true = moves written with piece names ("Bxe4" -> "Fou prend e4"),
                                       // "both" = names plus the standard notation in grey, {"Q": "..."} = own words
@@ -15,7 +17,8 @@
   "tiles": [{"value": "575", "label": "Classement actuel"}],
   "summary_html": "<p><b>En bref :</b> ...</p>",
   "game_analysis": {
-    "title": "Analyse de partie : victoire contre X",
+    "title": "Dernière partie (14.11.2026) : victoire contre X",
+    "toc_title": "Dernière partie",
     "sub_html": "13 nov. · Blancs (575) contre X (537) · 10 min · <a href=\"LINK\">la partie</a>",
     "html": "<p>...</p><div class=\"scroll\"><table>...{{GOTO:game:60:31}}...</table></div><h3>...</h3>",
     "viewer": {"game": "last", "orientation": "white", "title": "...",

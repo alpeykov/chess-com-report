@@ -40,19 +40,19 @@ LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
-               chart="Rating, game by game", contents="Contents", game_analysis="Game analysis", top="Back to top", collapse="Hide", expand="Show",
+               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", collapse="Hide", expand="Show",
                tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
-               game_analysis="Analyse de partie", top="Haut de page", collapse="Masquer", expand="Afficher",
+               game_analysis="Dernière partie", top="Haut de page", collapse="Masquer", expand="Afficher",
                tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
-               game_analysis="Анализ на партия", top="Към началото", collapse="Скрий", expand="Покажи",
+               game_analysis="Последна партия", top="Към началото", collapse="Скрий", expand="Покажи",
                tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
@@ -153,14 +153,13 @@ FLAGS = {
 LANG_NAMES = {"bg": "Български", "en": "English", "fr": "Français"}
 
 CSS = """
-:root{color-scheme:dark;--bg-knight:BGKNIGHT;--bg-king:BGKING;--page:#0c1117;--surface:#151d27;--surface-2:#10161e;--side:#182540;--side-line:#34507e;
+:root{color-scheme:dark;--scene:BGSCENE;--page:#0c1117;--surface:#151d27;--surface-2:#10161e;--side:#182540;--side-line:#34507e;
 --ink:#e8edf2;--ink-2:#c3ccd6;--muted:#93a1ae;--accent:#6d9dff;--accent-soft:#1c2b45;--accent-ink:#9dbcff;--on-accent:#0c1117;
 --good:#4cc38a;--bad:#e5574c;--warn:#f0a64a;--border:#263241;--border-strong:#34465c;--hover:#1c2b45;--grid:#1c2633;--axis:#34465c;
 --series:#6d9dff;--font:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace}
-*{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.55 var(--font);background-color:var(--page);background-image:radial-gradient(ellipse 90% 60% at 50% -10%,rgba(31,95,214,.30),transparent 70%),radial-gradient(ellipse 70% 50% at 100% 110%,rgba(109,157,255,.14),transparent 70%),repeating-conic-gradient(#101a28 0 25%,#0b121c 0 50%);background-size:auto,auto,72px 72px;background-attachment:fixed}
-body::before,body::after{content:"";position:fixed;z-index:0;pointer-events:none;background-repeat:no-repeat;background-size:contain;opacity:.09}
-body::before{width:min(46vw,520px);height:min(46vw,520px);right:-4vw;bottom:-3vw;background-image:var(--bg-knight)}
-body::after{width:min(30vw,340px);height:min(30vw,340px);left:-3vw;top:18vh;background-image:var(--bg-king);opacity:.06}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.55 var(--font);background:var(--page)}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:var(--scene) center bottom/cover no-repeat}
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:linear-gradient(180deg,rgba(12,17,23,.35) 0%,rgba(12,17,23,.55) 55%,rgba(12,17,23,.25) 100%)}
 .page,#to-top{position:relative;z-index:1}#to-top{position:fixed}
 .page{max-width:1120px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px));position:relative}
 .langbar{position:absolute;top:28px;right:max(16px,env(safe-area-inset-right,0px));display:inline-flex;gap:2px;padding:3px;border-radius:10px;
@@ -383,6 +382,14 @@ JS = """
 """
 
 
+def _bg_scene(variant):
+    """CSS url() of the faded background scene ("night", "fog", "king"; "none" for a plain colour)."""
+    import urllib.parse
+    if not variant or variant == "none":
+        return "none"
+    return 'url("data:image/svg+xml,' + urllib.parse.quote(board_svg.background_svg(variant)) + '")'
+
+
 def _bg_piece(sym):
     """A large, flat piece silhouette in the accent colour for the page background (CSS url())."""
     import urllib.parse
@@ -582,6 +589,8 @@ def main():
                 f'<ol>{"".join(toc)}</ol></details></nav>')
         if tiles:
             body.append(f'<div class="tiles">{tiles}</div>')
+            if spec.get("score_note"):
+                body.append(f'<p class="hint" style="margin:-6px 0 12px">{T(spec["score_note"])}</p>')
         if spec.get("summary_html"):
             body.append(f'<div class="callout">{T(spec["summary_html"])}</div>')
         for sid, num, title, _, html_, cc in secs:
@@ -616,7 +625,7 @@ def main():
     page = (f'<!doctype html><html lang="{first}"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
             f'<title>{H.escape(tr(spec.get("page_title", spec["title"]), first, first))}</title><link rel="icon" type="image/svg+xml" href="{icon}">'
-            f'{fonts}<style>{CSS.replace("BGKNIGHT", _bg_piece("N")).replace("BGKING", _bg_piece("K"))}</style></head><body><div class="page">{switcher}{mains}</div>'
+            f'{fonts}<style>{CSS.replace("BGSCENE", _bg_scene(spec.get("background", "night")))}</style></head><body><div class="page">{switcher}{mains}</div>'
             f'<button type="button" id="to-top" aria-label="{LL[first]["top"]}">&#8593;</button>'
             f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{board_svg.DEFS}</svg>'
             f'<script type="application/json" id="labels">{json.dumps(LL, ensure_ascii=False)}</script>'

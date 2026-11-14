@@ -110,3 +110,101 @@ def render(board, orient=chess.WHITE, lastmove=None, check=None, arrows=(), fill
     out.extend(_arrow(a, z, c, orient) for a, z, c in arrows)
     out.append("</svg>")
     return "".join(out)
+
+
+
+def _bg_symbols():
+    sym = []
+    for p in "KQRBNP":
+        g = re.sub(r"\s+", " ", chess.svg.PIECES[p])
+        g = re.sub(r' (id|class)="[^"]+"', "", g)
+        g = re.sub(r'(fill|stroke)="#(?:fff|000)"', lambda m: f'{m.group(1)}="currentColor"', g)
+        g = re.sub(r'(fill|stroke):#(?:ffffff|000000)', lambda m: f'{m.group(1)}:currentColor', g)
+        sym.append(f'<symbol id="b{p}" viewBox="0 0 45 45">{g}</symbol>')
+    return "".join(sym)
+
+
+BG_DEFS = ('<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#08101c"/><stop offset=".38" stop-color="#16315e"/>'
+           '<stop offset=".55" stop-color="#0c1a31"/><stop offset="1" stop-color="#060a12"/></linearGradient>'
+           '<radialGradient id="glow" cx=".5" cy=".38" r=".55"><stop offset="0" stop-color="#6d9dff" stop-opacity=".5"/>'
+           '<stop offset="1" stop-color="#6d9dff" stop-opacity="0"/></radialGradient>'
+           '<radialGradient id="vig" cx=".5" cy=".45" r=".75"><stop offset=".55" stop-color="#05080e" stop-opacity="0"/>'
+           '<stop offset="1" stop-color="#05080e" stop-opacity=".85"/></radialGradient>'
+           + "".join(f'<filter id="bl{i}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="{b}"/></filter>'
+                     for i, b in enumerate((0.5, 1.5, 3, 5, 9, 18)))
+           + '<filter id="rim" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6" result="b"/>'
+             '<feFlood flood-color="#8fb4ff" flood-opacity=".7"/><feComposite in2="b" operator="in" result="g"/>'
+             '<feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>')
+
+
+def _piece(p, x, y, size, color, blur=0, op=1.0, rim=False):
+    f = ' filter="url(#rim)"' if rim else (f' filter="url(#bl{blur})"' if blur else "")
+    return (f'<use href="#b{p}" x="{x - size / 2:.1f}" y="{y - size * 0.9:.1f}" width="{size:.1f}" height="{size:.1f}" '
+            f'color="{color}"{f} opacity="{op}"/>')
+
+
+def background_svg(variant="fog", seed=7):
+    """An original faded chess scene for the page background (no photos), in the report's blue palette.
+    variant: "fog"  - a board in perspective that disappears into blue fog, two armies facing each other;
+             "king" - a large king and queen in the light on the right, out-of-focus pieces and bokeh;
+             "night" - a dark, quiet board edge at the bottom with a few pieces and a soft glow (most subtle)."""
+    import random
+    rnd = random.Random(seed)
+    W, Hh = 1600, 1000
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {Hh}" preserveAspectRatio="xMidYMid slice">'
+           f'<defs>{_bg_symbols()}{BG_DEFS}</defs><rect width="{W}" height="{Hh}" fill="url(#sky)"/>']
+
+    def board(hz, cx, rows, sq, k, fade):
+        def proj(x, z):
+            s = 1 / (1 + z * k)
+            return cx + x * sq * s, hz + (Hh - hz) * s, s
+        for zi in range(rows):
+            for xi in range(-8, 8):
+                (x1, y1, _), (x2, _, _) = proj(xi, zi), proj(xi + 1, zi)
+                (x3, y3, _), (x4, _, _) = proj(xi + 1, zi + 1), proj(xi, zi + 1)
+                op = max(0.0, 0.9 - zi * fade)
+                out.append(f'<polygon points="{x1:.1f},{y1:.1f} {x2:.1f},{y1:.1f} {x3:.1f},{y3:.1f} {x4:.1f},{y3:.1f}" '
+                           f'fill="{"#2c5090" if (xi + zi) % 2 == 0 else "#0b1730"}" opacity="{op:.2f}"/>')
+        return proj
+
+    def bokeh(n, y0, y1, rmin, rmax):
+        for _ in range(n):
+            out.append(f'<circle cx="{rnd.uniform(0, W):.0f}" cy="{rnd.uniform(y0, y1):.0f}" r="{rnd.uniform(rmin, rmax):.0f}" '
+                       f'fill="#a9c6ff" opacity="{rnd.uniform(.05, .2):.2f}" filter="url(#bl4)"/>')
+
+    if variant == "fog":
+        hz = 380
+        out.append(f'<rect width="{W}" height="{Hh}" fill="url(#glow)"/>')
+        proj = board(hz, 800, 18, 150, 0.2, 0.045)
+        out.append(f'<rect y="{hz - 60}" width="{W}" height="200" fill="#7fa6f5" opacity=".18" filter="url(#bl5)"/>')
+        placed = []
+        for z, row, col in [(9, "RNBQKBNR", "#1d3459"), (8, "PPPPPPPP", "#1d3459"), (3, "PPPPPPPP", "#d7e5ff"), (2, "RNBQKBNR", "#d7e5ff")]:
+            for i, p in enumerate(row):
+                if p == "P" and rnd.random() < 0.3:
+                    continue
+                placed.append((z + 0.5, i - 3.5, p, col))
+        for z, x, p, col in sorted(placed, key=lambda t: -t[0]):
+            px, py, s = proj(x, z)
+            size = 175 * s * (1.18 if p in "KQ" else 1)
+            blur = 0 if 2 <= z <= 3.6 else 1 if z < 7 else 2
+            out.append(_piece(p, px, py, size, col, blur, .95 if z < 5 else .8, rim=(z < 5)))
+        bokeh(22, 120, 520, 8, 38)
+    elif variant == "king":
+        out.append('<ellipse cx="1180" cy="430" rx="620" ry="420" fill="url(#glow)"/>')
+        proj = board(560, 1000, 12, 170, 0.3, 0.07)
+        bokeh(30, 60, 700, 10, 60)
+        for p, x, y, s, c, b in [("R", 300, 640, 150, "#1d3459", 4), ("P", 520, 650, 120, "#d7e5ff", 3), ("B", 760, 640, 170, "#1d3459", 2),
+                                 ("N", 960, 700, 230, "#c9dbff", 1)]:
+            out.append(_piece(p, x, y, s, c, b, .75))
+        out.append(_piece("Q", 1340, 760, 380, "#1d3459", 0, .95, rim=True))
+        out.append(_piece("K", 1130, 820, 470, "#e3edff", 0, 1, rim=True))
+        out.append(_piece("P", 160, 1010, 320, "#e3edff", 5, .5))
+    else:  # night
+        out.append('<ellipse cx="800" cy="980" rx="900" ry="300" fill="#2c5090" opacity=".35" filter="url(#bl5)"/>')
+        board(760, 800, 7, 260, 0.35, 0.11)
+        bokeh(14, 80, 600, 6, 26)
+        for p, x, y, s, c, b, o in [("K", 260, 960, 260, "#c9dbff", 2, .55), ("N", 1360, 970, 300, "#1d3459", 1, .8),
+                                    ("P", 1120, 905, 140, "#c9dbff", 2, .5), ("Q", 560, 870, 150, "#1d3459", 3, .55)]:
+            out.append(_piece(p, x, y, s, c, b, o, rim=(b <= 1)))
+    out.append(f'<rect width="{W}" height="{Hh}" fill="url(#vig)"/></svg>')
+    return "".join(out)

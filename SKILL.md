@@ -9,7 +9,7 @@ Input: a chess.com **username** and a **report language** (`en`, `fr`, `bg`). If
 
 Reports are **multi-language by default**: `"langs": [main, the other two]` (main language first, e.g. `["bg", "en", "fr"]`), and every text field in the spec is `{"bg": ..., "en": ..., "fr": ...}`. The page shows flag buttons at the top and remembers the reader's choice (`?lang=en` in the URL also works). Write all three versions yourself; keep chess notation identical across them.
 
-Look: dark blue theme (Archivo font), a wooden board with metal pieces and coordinates on all four sides (`scripts/board_svg.py`), a collapsible contents card with coloured numbered badges that highlights the section in view, numbered section cards and a back-to-top button.
+Look: dark blue theme (Archivo font) over a faded chess scene drawn in SVG (`board_svg.background_svg`, spec `background`), a wooden board with metal pieces and coordinates on all four sides (`scripts/board_svg.py`), a collapsible contents card with coloured numbered badges that highlights the section in view, numbered section cards and a back-to-top button.
 
 Output: one self-contained `report.html` (dark theme, step-through boards, rating chart, no external files), saved where the user asks (default: `~/Downloads/chess-report-<username>/report.html`).
 
@@ -67,5 +67,5 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
 - In tables, mark moves with `?` (mistake), `??` (blunder), `!` (good), `?!` (dubious) and colour tags `<span class="tag w|l|n">`.
 - Write for a club player: short sentences, no engine scores, name squares and pieces, explain *why* a move fails.
 - Notation: if the user finds SAN hard to read, set `"piece_words": "both"` (names plus standard notation) or `true` (names only); in key-moment tables give separate columns with `<span class="words-only">` and `<code>` (see references/spec_format.md).
-- Bulgarian wording: say **„фигура“**, never „материал“ (e.g. „губи фигура“, „пропуснати фигури“, „изоставате във фигури“); a piece that can be taken for nothing is a **„незащитена фигура“**, never „безплатен материал“; the queen is **„царица“**, not „дама“.
+- Bulgarian wording: say **„фигура“**, never „материал“ (e.g. „губи фигура“, „пропуснати фигури“, „изоставате във фигури“); a piece that can be taken for nothing is a **„незащитена фигура“**, never „безплатен материал“; the queen is **„царица“**, not „дама“. A score percentage is **„успеваемост“** (wins + ½ per draw ÷ games); always say over which games it is and give the W–L–D numbers next to it. The latest-game section is called **„Последна партия (date): победа/загуба срещу X“** (en: “Latest game”, fr: « Dernière partie »).
 - Language: everything the reader sees (titles, captions, tables, buttons) is in the chosen language; chess notation stays in English SAN.
