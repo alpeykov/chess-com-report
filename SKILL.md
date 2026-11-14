@@ -30,7 +30,7 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
    `--months N` limits history; `--last-only` fetches only the newest game.
 
 2. **Statistics**
-   `python stats.py USERNAME --dir OUT` → `OUT/games.json` (one row per game, `n` = game number) and `OUT/summary.json`: record by colour, rating first/now/peak/low, last 50 games, how games were lost and won, queen-lost games, losses within 15 moves, resignations at -3 or better, tilt (results after a win / after 1-3 losses in a row on the same day, and by game-of-the-day), openings (first moves, replies as Black, named openings, early bishop checks), quarters of the history.
+   `python stats.py USERNAME --dir OUT` (counts only the most played time class, e.g. rapid; `--time-class all` or `--time-class blitz` to change) → `OUT/games.json` (one row per game, `n` = game number) and `OUT/summary.json`: record by colour, rating first/now/peak/low, last 50 games, how games were lost and won, queen-lost games, losses within 15 moves, resignations at -3 or better, tilt (results after a win / after 1-3 losses in a row on the same day, and by game-of-the-day), openings (first moves, replies as Black, named openings, early bishop checks), quarters of the history.
    **Every number in the report must come from these files.** Recompute with a short Python snippet over `games.json` when you need a number they do not have; never estimate.
 
 3. **Mistake scan (history)**
