@@ -70,6 +70,36 @@ def verify_one(f, depth=5):
     return f
 
 
+def _ply_job(args):
+    fen, uci, depth = args
+    b = chess.Board(fen)
+    m = chess.Move.from_uci(uci)
+    best, bm, ps = best_and_played(b, m, depth=depth)
+    return best, b.san(bm), ps
+
+
+def scan_one_game(game, me, depth, pool):
+    """Every move of both sides at `depth`, one process per move. Depth 4 (the --pgn default) sees a mate that
+    follows a recapture (e.g. 35.Qxf3?? exf3 36.Kh1 Qg2#), which depth 3 misses."""
+    color = chess.WHITE if game.headers["White"].lower() == me else chess.BLACK
+    b, jobs, boards = game.board(), [], []
+    for mv in game.mainline_moves():
+        jobs.append((b.fen(), mv.uci(), depth))
+        boards.append((b.copy(), mv))
+        b.push(mv)
+    out = []
+    for i, ((bb, mv), (best, bsan, ps)) in enumerate(zip(boards, pool.map(_ply_job, jobs))):
+        mine = bb.turn == color
+        flag = best - ps >= 2 or (best > 900 and ps < 900)
+        print(f"ply {i:3} {bb.fullmove_number}{'.' if bb.turn else '...'}{bb.san(mv):8} {'ME ' if mine else 'OPP'} "
+              f"played={ps:5} best={bsan:8} {best:5}{'  <==' if flag else ''}", flush=True)
+        if flag:
+            out.append(dict(ply=i, frame=i + 1, move_no=bb.fullmove_number, side="white" if bb.turn else "black",
+                            mine=mine, played=bb.san(mv), best=bsan, best_score=best, played_score=ps,
+                            drop=min(best, 999) - max(ps, -999), kind=classify(bb, best, ps), fen=bb.fen()))
+    return out
+
+
 def verify(items, depth=5, pool=None):
     if pool is None:
         return [verify_one(f, depth) for f in items]
@@ -92,7 +122,7 @@ def main():
     ap.add_argument("--dir", required=True)
     ap.add_argument("--games", type=int, default=0, help="scan only the last N games (default: all)")
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="parallel processes (default: all cores)")
-    ap.add_argument("--depth", type=int, default=3)
+    ap.add_argument("--depth", type=int, default=None, help="search depth (default 3 for the history, 4 for --pgn)")
     ap.add_argument("--pgn", help="scan a single game, both sides")
     ap.add_argument("--verify-top", type=int, default=240, help="moves re-checked at depth 5, split evenly over the four kinds")
     a = ap.parse_args()
@@ -101,7 +131,8 @@ def main():
 
     if a.pgn:
         game = chess.pgn.read_game(open(a.pgn, encoding="utf-8"))
-        items = verify(scan_game(game, me, a.depth, both_sides=True, verbose=True))
+        with multiprocessing.Pool(max(1, a.jobs)) as pool:
+            items = verify(scan_one_game(game, me, a.depth or 4, pool), pool=pool)
         for f in items:
             tag = "ME " if f["mine"] else "OPP"
             print(f"[{tag}] ply {f['ply']} {f['move_no']}{'.' if f['side'] == 'white' else '...'}{f['played']} "
@@ -121,7 +152,7 @@ def main():
     if a.games:
         games = games[-a.games:]
     flagged = []
-    jobs = [(text, r, me, a.depth) for r, text in games]
+    jobs = [(text, r, me, a.depth or 3) for r, text in games]
     with multiprocessing.Pool(max(1, a.jobs)) as pool:
         for k, out_items in enumerate(pool.imap_unordered(_scan_job, jobs), 1):
             flagged.extend(out_items)

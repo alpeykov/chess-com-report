@@ -38,7 +38,7 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
    Group the flagged moves into **recurring patterns** (e.g. "queen left undefended", "missed back-rank mate", "missed fork"). Pick 2-4 clear examples per pattern for boards.
 
 4. **Last game (both sides)**
-   `python scan.py USERNAME --dir OUT --pgn OUT/last.pgn` → prints every move and writes `OUT/last_flagged.json` with verified lines for both players.
+   `python scan.py USERNAME --dir OUT --pgn OUT/last.pgn` (depth 4, all moves in parallel, about 1 minute) → prints every move and writes `OUT/last_flagged.json` with verified lines for both players.
    Also look for forced mates the player missed when attacking (positions just before and during an attack). The engine is a material search: it finds hanging pieces, forks and mates in 1-3, not positional ideas. Only state tactics you verified with a printed line; if unsure, run `engine.pv` on the position.
 
 5. **Write the spec** `OUT/report_spec.json` in the chosen language. Format: `references/spec_format.md`. Recommended sections (adapt to what the data shows; skip a section with nothing to say):
