@@ -245,7 +245,14 @@ JS = """
       hot.setAttribute('cx', d.x); hot.setAttribute('cy', d.y); hot.setAttribute('visibility', 'visible');
       const how = L['how_' + d.how] || '', ch = d.d > 0 ? '+' + d.d : String(d.d);
       const resCls = d.res === 'win' ? 'up' : d.res === 'loss' ? 'down' : '';
-      tip.innerHTML = '<div class="tt-h"><span>' + esc(d.date) + (d.time ? ' · ' + esc(d.time) + ' UTC' : '') + '</span><span>' + esc(L.game) + ' ' + d.n + '</span></div>'
+      let when = d.date;  // end of the game in the viewer's own time zone
+      const dt = d.ts ? new Date(d.ts) : null;
+      if (dt && !isNaN(dt)) {
+        const lang = document.documentElement.lang || undefined;
+        when = dt.toLocaleDateString(lang, {day: 'numeric', month: 'numeric', year: 'numeric'}) + ' · '
+             + dt.toLocaleTimeString(lang, {hour: '2-digit', minute: '2-digit'});
+      }
+      tip.innerHTML = '<div class="tt-h"><span>' + esc(when) + '</span><span>' + esc(L.game) + ' ' + d.n + '</span></div>'
         + '<div class="tt-r"><span>' + esc(L.rating) + '</span><b>' + d.me + ' <span class="' + (d.d > 0 ? 'up' : d.d < 0 ? 'down' : '') + '">(' + ch + ')</span></b></div>'
         + '<div class="tt-r"><span class="' + resCls + '">' + esc(L[d.res]) + (how ? ', ' + esc(how) : '') + '</span><b>' + esc(L[d.color]) + '</b></div>'
         + '<div class="tt-r"><span>' + esc(L.vs) + ' ' + esc(d.opp) + '</span><b>' + d.oe + '</b></div>'
@@ -381,7 +388,8 @@ def rating_chart(rows, main_tc, L):
         yy, mm, dd = (s["date"].split(".") + ["", "", ""])[:3]
         data.append({"x": round(x(i), 1), "y": round(y(s["my_elo"]), 1), "n": s["n"],
                      "date": f"{int(dd)}.{mm}.{yy}" if dd else s["date"],
-                     "time": (s.get("end_time") or "")[:5], "color": s["color"], "res": s["outcome"],
+                     "ts": f"{yy}-{mm}-{dd}T{s['end_time']}Z" if dd and s.get("end_time") else "",
+                     "color": s["color"], "res": s["outcome"],
                      "how": s.get("how", ""), "opp": s["opp"], "oe": s["opp_elo"], "me": s["my_elo"],
                      "d": s["my_elo"] - S[i - 1]["my_elo"] if i else 0, "op": s.get("opening", ""),
                      "plies": s.get("plies", 0), "link": s.get("link", "")})
