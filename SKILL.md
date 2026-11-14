@@ -35,7 +35,7 @@ chess-report-<username>/
 |---|---|
 | first request / "make my report" | Full workflow below (steps 1-6). |
 | "analyze the last game" | Steps 1 (`--last-only`), 4, then replace **only** `game_analysis` in the existing spec and rebuild (step 6). Do not recompute statistics or rewrite other sections. |
-| "regenerate the report" | Steps 1-3 and 5-6: download and statistics cover all games, the scan adds only the new games (a few seconds); keep the current `game_analysis` as it is. |
+| "regenerate the report" | Steps 1-3 and 5-6: download and statistics cover all games, the scan adds only the new games (a few seconds); keep the current `game_analysis` as it is. Before rebuilding, search the spec (or the script that writes it) for numbers typed into the text instead of read from the data files, and update them or make them computed. Then `history.py --add`. |
 
 Keep `OUT/report_spec.json` between runs: it is the source of the report, so later commands edit it instead of starting over.
 
