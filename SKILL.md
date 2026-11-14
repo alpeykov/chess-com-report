@@ -19,7 +19,7 @@ Scripts are in `scripts/` (run them from that folder or pass full paths). `OUT` 
 |---|---|
 | first request / "make my report" | Full workflow below (steps 1-6). |
 | "analyze the last game" | Steps 1 (`--last-only`), 4, then replace **only** `game_analysis` in the existing spec and rebuild (step 6). Do not recompute statistics or rewrite other sections. |
-| "regenerate the report" | Steps 1-3 and 5-6 with all games; keep the current `game_analysis` as it is. |
+| "regenerate the report" | Steps 1-3 and 5-6: download and statistics cover all games, the scan adds only the new games (a few seconds); keep the current `game_analysis` as it is. |
 
 Keep `OUT/report_spec.json` between runs: it is the source of the report, so later commands edit it instead of starting over.
 
@@ -34,7 +34,7 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
    **Every number in the report must come from these files.** Recompute with a short Python snippet over `games.json` when you need a number they do not have; never estimate.
 
 3. **Mistake scan (history)**
-   `python scan.py USERNAME --dir OUT` (all games, in parallel on all cores; `--games N` = only the last N) → `OUT/flagged.json`: the player's moves that lost material, allowed mate, missed a mate or missed free material. The 60 biggest items of each kind (missed mate, allowed mate, lost material, missed gain) are re-checked at depth 5 and carry `line` (best line) and `after` (what the played move allowed); the rest keep only the depth-3 result. About 1 minute per 16 games on 16 cores; run it in the background.
+   `python scan.py USERNAME --dir OUT` (first run: all games, in parallel on all cores; later runs scan only the games not in `OUT/scanned.json` and keep the earlier results; `--full` rescans everything; `--games N` = only the last N) → `OUT/flagged.json`: the player's moves that lost material, allowed mate, missed a mate or missed free material. The 60 biggest items of each kind (missed mate, allowed mate, lost material, missed gain) are re-checked at depth 5 and carry `line` (best line) and `after` (what the played move allowed); the rest keep only the depth-3 result. About 1 minute per 16 games on 16 cores; run it in the background.
    Group the flagged moves into **recurring patterns** (e.g. "queen left undefended", "missed back-rank mate", "missed fork"). Pick 2-4 clear examples per pattern for boards.
 
 4. **Last game (both sides)**

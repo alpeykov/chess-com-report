@@ -3,7 +3,9 @@
 Whole history (player's moves only):
   python scan.py USERNAME --dir OUT [--games N] [--depth 3] [--jobs N]
   -> OUT/flagged.json: moves where the player lost material or missed a win/mate, sorted by size.
-     All games are scanned by default (--games N limits it to the last N), in parallel on all CPU cores.
+     All games are scanned the first time (--games N limits it to the last N), in parallel on all CPU cores.
+     Later runs scan only games that are not in OUT/scanned.json yet and keep the earlier results
+     (--full rescans everything, e.g. after the engine changed).
      The biggest items of each kind (--verify-top, default 240 = 60 per kind) are re-checked at depth 5 with the best line ("line") and what happened after the played move ("after").
 
 One game (both sides, every move printed):
@@ -124,6 +126,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="parallel processes (default: all cores)")
     ap.add_argument("--depth", type=int, default=None, help="search depth (default 3 for the history, 4 for --pgn)")
     ap.add_argument("--pgn", help="scan a single game, both sides")
+    ap.add_argument("--full", action="store_true", help="rescan all games (default: only games not scanned before)")
     ap.add_argument("--verify-top", type=int, default=240, help="moves re-checked at depth 5, split evenly over the four kinds")
     a = ap.parse_args()
     me = a.username.strip().lower()
@@ -151,30 +154,51 @@ def main():
     games.sort(key=lambda x: x[0]["n"])
     if a.games:
         games = games[-a.games:]
-    flagged = []
-    jobs = [(text, r, me, a.depth or 3) for r, text in games]
+
+    # incremental: keep earlier results and scan only games that are not in scanned.json yet
+    flagged, scanned = [], set()
+    if not a.full and (out / "flagged.json").exists():
+        flagged = json.loads((out / "flagged.json").read_text(encoding="utf-8"))
+        if (out / "scanned.json").exists():
+            scanned = set(json.loads((out / "scanned.json").read_text(encoding="utf-8")))
+        else:  # results from before scanned.json existed: every game up to the newest flagged one was scanned
+            newest = max((by_link[f["link"]]["n"] for f in flagged if f.get("link") in by_link), default=0)
+            scanned = {r["link"] for r in rows if r["n"] <= newest}
+        flagged = [f for f in flagged if f.get("link") in by_link]
+        for f in flagged:  # game numbers can move when the history changes
+            r = by_link[f["link"]]
+            f.update(game=r["n"], opp=r["opp"], date=r["date"], color=r["color"], outcome=r["outcome"])
+    todo = [(r, text) for r, text in games if r["link"] not in scanned]
+    print(f"{len(games) - len(todo)} games already scanned, {len(todo)} to scan"
+          + (" (use --full to rescan everything)" if scanned else ""), file=sys.stderr, flush=True)
+
+    jobs = [(text, r, me, a.depth or 3) for r, text in todo]
     with multiprocessing.Pool(max(1, a.jobs)) as pool:
         for k, out_items in enumerate(pool.imap_unordered(_scan_job, jobs), 1):
             flagged.extend(out_items)
             if k % 10 == 0 or k == len(jobs):
                 print(f"scanned {k}/{len(jobs)}", file=sys.stderr, flush=True)
         flagged.sort(key=lambda f: -f["drop"])
-        # verify the biggest items of EACH kind: sorting by drop alone fills the list with mates only
+        # verify the biggest items of EACH kind (sorting by drop alone fills the list with mates only);
+        # items verified in an earlier run keep their result
         per_kind = max(1, a.verify_top // 4)
         pick, seen = [], collections.Counter()
         for i, f in enumerate(flagged):
             if seen[f["kind"]] < per_kind:
                 seen[f["kind"]] += 1
-                pick.append(i)
+                if not f.get("line"):
+                    pick.append(i)
         for i, f in zip(pick, verify([flagged[i] for i in pick], pool=pool)):
             flagged[i] = f
-        print(f"verified {len(pick)} at depth 5: {dict(seen)}", file=sys.stderr, flush=True)
+        print(f"verified {len(pick)} new moves at depth 5", file=sys.stderr, flush=True)
     flagged = [f for f in flagged if f.get("confirmed", True)]
+    scanned |= {r["link"] for r, _ in todo}
+    (out / "scanned.json").write_text(json.dumps(sorted(scanned)), encoding="utf-8")
     kinds = {}
     for f in flagged:
         kinds[f["kind"]] = kinds.get(f["kind"], 0) + 1
     (out / "flagged.json").write_text(json.dumps(flagged, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"{len(games)} games scanned, {len(flagged)} flagged moves: {kinds}")
+    print(f"{len(todo)} new games scanned, {len(flagged)} flagged moves in {len(scanned)} games: {kinds}")
     for f in [x for x in flagged if x.get("line")][:25]:
         print(f"G{f['game']} vs {f['opp']} {f['move_no']}{'.' if f['side'] == 'white' else '...'}{f['played']} "
               f"[{f['kind']}] best {f['best']} ({f['best_score']} vs {f['played_score']}) line: {f.get('line', '')}")
