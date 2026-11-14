@@ -59,6 +59,8 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
    6. Missed wins: missed mates and free material.
    7. Plan: 3-5 concrete habits ranked by points saved, plus what is already working.
    In the key-moment table the last column („Обяснение“ / Explanation) must be specific and complete: the winning chances before → after (from `sf_last.json`), what the played move did or failed to do (which piece, which square, which threat), the idea of the better move with its concrete line, and what the opponent could or did do next. Never just "better move" or "lost material".
+   Key-moment table layout: one row with move number (GOTO button), played (words + `<code>` notation), better (words + `<code>`), then a second row `<tr class="mv-exp"><td colspan="5">…</td></tr>` with the explanation across the full width.
+   Also include, when the data shows them: **King safety** (mates on f7/f2, back rank, g7/g2, early Qh5), recurring patterns such as **knight forks on c7**, **Resigning too early**, and in Progress a table **between the reports** (periods from `history.py`): score, rating, Stockfish accuracy, quick losses, early bishop checks, opening scores, early resignations, queen losses, mates, after 2 losses.
    Plus `game_analysis` for the last game: summary (2-3 sentences), key-moment table (move, played, better, what happened) where each move number is a `{{GOTO:game:PLY:N}}` button, "what you did well", one lesson linked to a general habit. Board orientation = the player's colour.
 
 6. **Build and check**

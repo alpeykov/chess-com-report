@@ -188,7 +188,7 @@ section[id$="game-analysis"] .lg>div:first-child{position:sticky;top:12px;align-
 table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
 th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.07em}td{color:var(--ink-2)}
 td.num{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink)}
-.scroll{overflow-x:auto}.hint{color:var(--muted);font-size:14px}
+.scroll{overflow-x:auto}tr.mv-row>td{border-bottom:0;padding-bottom:2px;vertical-align:middle}tr.mv-exp>td{padding-top:2px;padding-bottom:14px;font-size:14.5px;line-height:1.55}.hint{color:var(--muted);font-size:14px}
 .tag{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:99px;white-space:nowrap}
 .tag.w{background:rgba(76,195,138,.16);color:#7ddcaa}.tag.l{background:rgba(229,87,76,.18);color:#f2a39b}.tag.n{background:var(--accent-soft);color:var(--accent-ink)}
 .bars{display:grid;gap:8px;margin-top:10px;max-width:640px}
