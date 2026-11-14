@@ -53,7 +53,7 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
 5. **Write the spec** `OUT/report_spec.json` in the chosen language. Format: `references/spec_format.md`. Recommended sections (adapt to what the data shows; skip a section with nothing to say):
    1. Overview: tiles (games, record, rating now/peak, score in last 50), `{{CHART}}`, 3-5 key findings.
    2. Openings: table per situation (White first move, Black vs 1.e4 / 1.d4) with score % and games, conclusion per row; boards for the main lines and for the most costly opening habit.
-   3. Tilt and session length: score after a win vs after 1, 2, 3 losses; games 1-5 / 6-20 / 21+ of a day; a concrete stop rule.
+   3. Tilt, sessions and breaks: score after a win vs after 1, 2, 3 losses; score by the game's place in a session and by the break length before the next game after 1 or 2 losses (`summary.json` → `sessions`); a concrete rule for how long to stop.
    4. How games are lost: mated, time, resignation, queen lost; how early.
    5. Recurring tactical mistakes: one subsection per pattern with boards from `flagged.json`, the verified line in the caption, and one habit to fix it.
    6. Missed wins: missed mates and free material.

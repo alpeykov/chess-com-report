@@ -40,19 +40,19 @@ LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
-               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", white_chances="White's winning chances", next_section="Next section", collapse="Hide", expand="Show",
+               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", white_chances="White's winning chances", next_section="Next section", collapse="Collapse all", expand="Expand all",
                tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
-               game_analysis="Dernière partie", top="Haut de page", white_chances="Chances des Blancs", next_section="Section suivante", collapse="Masquer", expand="Afficher",
+               game_analysis="Dernière partie", top="Haut de page", white_chances="Chances des Blancs", next_section="Section suivante", collapse="Tout replier", expand="Tout déplier",
                tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
-               game_analysis="Последна партия", top="Към началото", white_chances="Шанс за белите", next_section="Следващ раздел", collapse="Скрий", expand="Покажи",
+               game_analysis="Последна партия", top="Към началото", white_chances="Шанс за белите", next_section="Следващ раздел", collapse="Свий всички", expand="Разгъни всички",
                tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
@@ -182,6 +182,8 @@ a{color:var(--accent)}.sub{color:var(--muted);margin:0 0 20px}
 .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:12px}.vgrid>*{min-width:0}
 .lg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;margin-top:12px}
 @media (max-width:860px){.lg{grid-template-columns:minmax(0,1fr)}}
+section[id$="game-analysis"] .lg>div:first-child{position:sticky;top:12px;align-self:start;z-index:2}
+@media (max-width:860px){section[id$="game-analysis"] .lg>div:first-child{top:0;z-index:4;background:var(--page);padding:6px 0;border-bottom:1px solid var(--border)}.lg .v-board svg,.lg .v-eval{max-width:250px;margin:0 auto}.lg .v-title,.lg .v-moves{display:none}.lg .v-cap{min-height:0;font-size:14px}.lg .viewer{padding:8px;gap:6px}}
 @media (max-width:560px){h1{padding-right:0;margin-top:44px}}
 table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
 th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.07em}td{color:var(--ink-2)}
@@ -224,7 +226,8 @@ details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 nav.toc-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin:22px 0;padding:0}
 nav.toc-card>details>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:14px 22px;font-weight:700;font-size:18px}
 nav.toc-card>details>summary::-webkit-details-marker{display:none}
-nav.toc-card>details>summary::after{content:"";width:9px;height:9px;margin-left:auto;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform .2s}
+nav.toc-card .fold-all{margin-left:auto;display:flex;gap:6px}nav.toc-card .fold-all button{font:600 12px var(--font);color:var(--accent-ink);background:var(--accent-soft);border:1px solid var(--border-strong);border-radius:99px;padding:3px 10px;cursor:pointer}nav.toc-card .fold-all button:hover{background:var(--hover)}
+nav.toc-card>details>summary::after{content:"";width:9px;height:9px;margin-left:12px;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform .2s}
 nav.toc-card>details:not([open])>summary::after{transform:rotate(-45deg)}
 nav.toc-card ol{list-style:none;margin:0;padding:0 16px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 12px}
 nav.toc-card a{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-weight:600;font-size:15px;padding:6px 10px;border-radius:8px;
@@ -404,7 +407,14 @@ JS = """
     topBtn.addEventListener('click', function(){ window.scrollTo({top: 0}); });
     onScroll();
   }
-  function openTarget(id){ const el = id && document.getElementById(id); if (el && el.tagName === 'DETAILS') el.open = true; }
+  function openTarget(id){
+    const el = id && document.getElementById(id); if (!el) return;
+    const d = el.tagName === 'DETAILS' ? el : el.querySelector(':scope > details.fold'); if (d) d.open = true;
+  }
+  document.querySelectorAll('.fold-all button').forEach(function(b){ b.addEventListener('click', function(e){
+    e.preventDefault(); e.stopPropagation();
+    b.closest('main').querySelectorAll('section.card > details.fold').forEach(function(d){ d.open = b.dataset.fold === 'open'; });
+  }); });
   // sections off screen are not rendered (content-visibility), so their height is only estimated:
   // jump, let them render, then correct the position
   function go(id, smooth){
@@ -616,10 +626,15 @@ def main():
 
         toc, body = [], []
         secs = []  # (id, number, title, toc title, html, colour class)
+        lead = [s for s in spec.get("sections", []) if s.get("before_game")]  # e.g. a rule for the reader's next session
+        for s in lead:
+            secs.append((f'{lang}-{s["id"]}', s.get("badge", "★"), T(s["title"]), T(s.get("toc_title", s["title"])), T(s["html"]), "c6"))
         if ga:
             secs.append((f"{lang}-game-analysis", "♞", T(ga["title"]), T(ga.get("toc_title", L["game_analysis"])), None, "c1"))
         k = 0
         for s in spec.get("sections", []):
+            if s.get("before_game"):
+                continue
             title = T(s["title"])
             m = re.match(r"^(\d+)\.\s*(.*)$", title)
             num, title = (m.group(1), m.group(2)) if m else (str(k + 1), title)
@@ -630,7 +645,9 @@ def main():
         tiles = "".join(f'<div class="tile"><div class="v">{T(t_["value"])}</div><div class="l">{T(t_["label"])}</div></div>'
                         for t_ in spec.get("tiles", []))
         head = (f'<h1>{H.escape(T(spec["title"]))}</h1><p class="sub">{T(spec.get("subtitle", ""))}</p>'
-                f'<nav class="toc-card" aria-label="{L["contents"]}"><details open><summary>{L["contents"]}</summary>'
+                f'<nav class="toc-card" aria-label="{L["contents"]}"><details open><summary>{L["contents"]}'
+                f'<span class="fold-all"><button type="button" data-fold="open">{L["expand"]}</button>'
+                f'<button type="button" data-fold="close">{L["collapse"]}</button></span></summary>'
                 f'<ol>{"".join(toc)}</ol></details></nav>')
         if tiles:
             body.append(f'<div class="tiles">{tiles}</div>')
@@ -644,7 +661,8 @@ def main():
                             f'{H.escape(title)}</h2></summary><p class="sub">{T(ga.get("sub_html", ""))}</p><div class="lg"><div>{{{{V:game}}}}</div>'
                             f'<div>{T(ga["html"])}</div></div></details></section>')
             else:
-                body.append(f'<section class="card {cc}" id="{sid}"><h2><span class="num">{num}</span>{H.escape(title)}</h2>{html_}</section>')
+                body.append(f'<section class="card {cc}" id="{sid}"><details class="fold" open><summary><h2><span class="num">{num}</span>'
+                            f'{H.escape(title)}</h2></summary>{html_}</details></section>')
         if spec.get("footer_html"):
             body.append(f'<p class="hint" style="margin-top:32px">{T(spec["footer_html"])}</p>')
         content = fill(head + "".join(body))

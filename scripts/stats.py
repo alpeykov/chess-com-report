@@ -73,7 +73,8 @@ def rows_from(pgn_text, me):
             resign_eval = s if b.turn == color else -s
         eco_url = h.get("ECOUrl", "")
         rows.append(dict(
-            date=h.get("UTCDate", h.get("Date", "")), end_time=h.get("EndTime", ""), color="white" if white else "black",
+            date=h.get("UTCDate", h.get("Date", "")), end_time=h.get("EndTime", ""),
+            start=f'{h.get("UTCDate", "")} {h.get("StartTime", "")}'.strip(), end=f'{h.get("EndDate", h.get("UTCDate", ""))} {h.get("EndTime", "")}'.strip(), color="white" if white else "black",
             outcome=outcome, how=how, opp=h["Black"] if white else h["White"],
             my_elo=int(h.get("WhiteElo" if white else "BlackElo", 0) or 0),
             opp_elo=int(h.get("BlackElo" if white else "WhiteElo", 0) or 0),
@@ -110,6 +111,46 @@ def tilt(rows):
     out["by_game_of_day"] = {k: rec(v) for k, v in by_day_index.items()}
     out["max_games_in_a_day"] = max(seen.values())
     return out
+
+
+def sessions(rows, gap_minutes=30):
+    """Play sessions (games less than gap_minutes apart), the score by the game's place in a session, and the score of
+    the next game by the length of the break before it, overall and after 1 or 2 losses in a row."""
+    import datetime
+    def ts(s):
+        try:
+            return datetime.datetime.strptime(s, "%Y.%m.%d %H:%M:%S")
+        except ValueError:
+            return None
+    main = collections.Counter(r["time_class"] for r in rows).most_common(1)[0][0]
+    G = [r for r in rows if r["time_class"] == main and ts(r.get("start", "")) and ts(r.get("end", ""))]
+    G.sort(key=lambda r: ts(r["start"]))
+    gap = [None] + [(ts(G[i]["start"]) - ts(G[i - 1]["end"])).total_seconds() / 60 for i in range(1, len(G))]
+    sess, cur = [], []
+    for i, r in enumerate(G):
+        if i and gap[i] > gap_minutes:
+            sess.append(cur)
+            cur = []
+        cur.append(r)
+    if cur:
+        sess.append(cur)
+    pos = collections.defaultdict(list)
+    for S in sess:
+        for k, r in enumerate(S, 1):
+            pos[k].append(r)
+    buckets = [("1-3", 1, 3), ("4-6", 4, 6), ("7-10", 7, 10), ("11-15", 11, 15), ("16+", 16, 10 ** 6)]
+    gaps = [("<2", 0, 2), ("2-15", 2, 15), ("15-60", 15, 60), ("60-240", 60, 240), (">240", 240, 10 ** 9)]
+
+    def by_gap(cond):
+        return {name: rec([G[i] for i in range(1, len(G)) if lo <= gap[i] < hi and cond(i)]) for name, lo, hi in gaps}
+    return {
+        "gap_minutes": gap_minutes, "sessions": len(sess), "avg_length": round(sum(map(len, sess)) / max(1, len(sess)), 1),
+        "longest": max(map(len, sess)) if sess else 0,
+        "by_position": {name: rec([r for k, v in pos.items() if lo <= k <= hi for r in v]) for name, lo, hi in buckets},
+        "by_gap": by_gap(lambda i: True),
+        "by_gap_after_loss": by_gap(lambda i: G[i - 1]["outcome"] == "loss"),
+        "by_gap_after_2_losses": by_gap(lambda i: i >= 2 and G[i - 1]["outcome"] == "loss" and G[i - 2]["outcome"] == "loss"),
+    }
 
 
 def openings(rows):
@@ -160,7 +201,7 @@ def summary(rows):
         "mated_games": [r["n"] for r in L if r["how"] == "checkmate"],
         "losses_within_15_moves": [r["n"] for r in L if r["plies"] <= 30],
         "resigned_at_minus3_or_better": [r["n"] for r in L if r["resign_eval"] is not None and r["resign_eval"] >= -3],
-        "tilt": tilt(rows), "openings": openings(rows),
+        "tilt": tilt(rows), "sessions": sessions(rows), "openings": openings(rows),
         "by_quarter": [dict(range=[c[0]["n"], c[-1]["n"]], dates=[c[0]["date"], c[-1]["date"]], **rec(c),
                             rating=span(c))
                        for c in (rows[len(rows) * k // 4:len(rows) * (k + 1) // 4] for k in range(4)) if c],
