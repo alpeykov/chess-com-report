@@ -6,6 +6,11 @@ The spec format is described in references/spec_format.md. Placeholders allowed 
   {{CHART}}                      rating chart (main time class) from games.json
   {{V:viewer_id}}                step-through board defined in spec["viewers"]
   {{GOTO:viewer_id:frame:text}}  button that jumps that board to a frame (frame = ply + 1)
+
+Several languages: set spec["langs"] (e.g. ["bg", "en", "fr"], the first is the default). Any text field
+(title, subtitle, tile value/label, summary_html, sections' title/toc_title/html, game_analysis fields,
+viewer titles and notes, footer_html) may then be a dict {"bg": ..., "en": ..., "fr": ...}; a plain string
+is used for every language. The page gets a flag switcher and remembers the reader's choice.
 """
 import argparse
 import html as H
@@ -16,6 +21,7 @@ import re
 import chess
 import chess.pgn
 import chess.svg
+import board_svg
 
 COLORS = {"square light": "#f0d9b5", "square dark": "#b58863",
           "square light lastmove": "#f6eb72", "square dark lastmove": "#dcc34b"}
@@ -23,23 +29,30 @@ ARROW = {"green": "#15781B90", "red": "#D0201090", "blue": "#2050C080", "yellow"
 DEFS_RE = re.compile(r"<defs>.*?</defs>", re.S)
 WORDS = None  # set in main() when spec["piece_words"] is on
 
+
+def tr(v, lang, default=None):
+    """Text for one language: dicts are {lang: text}; anything else is the same in every language."""
+    if isinstance(v, dict):
+        return v.get(lang, v.get(default, next(iter(v.values()), "")))
+    return v
+
 LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
-               chart="Rating, game by game", contents="Contents", game_analysis="Game analysis",
+               chart="Rating, game by game", contents="Contents", game_analysis="Game analysis", top="Back to top", collapse="Hide", expand="Show",
                tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
-               game_analysis="Analyse de partie",
+               game_analysis="Analyse de partie", top="Haut de page", collapse="Masquer", expand="Afficher",
                tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
-               game_analysis="Анализ на партия",
+               game_analysis="Анализ на партия", top="Към началото", collapse="Скрий", expand="Покажи",
                tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
@@ -57,7 +70,7 @@ PIECE_RE = re.compile(r"^(?:(O-O-O|O-O)|([KQRBN])([a-h]?[1-8]?)(x?)([a-h][1-8])|
 PAWN_RE = re.compile(r"^([a-h][1-8])(?:=([QRBN]))?$")
 
 
-def words_for(spec):
+def words_for(spec, lang=None):
     """Write SAN moves in visible text with piece names.
     spec["piece_words"]: true -> names only ("Bxe4" -> "Bishop takes e4"); "both" -> names followed by the standard
     notation in small grey type; a dict overrides PIECE_WORDS[lang]. Text inside <code>...</code> is left as is
@@ -67,7 +80,7 @@ def words_for(spec):
     pw = spec.get("piece_words")
     if not pw:
         return None
-    w = dict(PIECE_WORDS.get(spec.get("lang", "en"), PIECE_WORDS["en"]))
+    w = dict(PIECE_WORDS.get(lang or spec.get("lang", "en"), PIECE_WORDS["en"]))
     if isinstance(pw, dict):
         w.update(pw)
     both = pw == "both" or (isinstance(pw, dict) and pw.get("both"))
@@ -126,79 +139,123 @@ def words_for(spec):
             elif "code" in stack:
                 out.append(part)
             else:
-                out.append(text(part, True, False, names_only="words" in stack))
+                wo = "words" in stack  # a words-only cell holds one move, so a bare square there is a pawn move
+                out.append(text(part, True, wo, names_only=wo))
         return "".join(out)
     return apply
 
 
+FLAGS = {
+    "bg": '<svg viewBox="0 0 30 18"><rect width="30" height="6" fill="#fff"/><rect y="6" width="30" height="6" fill="#00966E"/><rect y="12" width="30" height="6" fill="#D62612"/></svg>',
+    "en": '<svg viewBox="0 0 60 36"><rect width="60" height="36" fill="#012169"/><path d="M0 0L60 36M60 0L0 36" stroke="#fff" stroke-width="7"/><path d="M0 0L60 36M60 0L0 36" stroke="#C8102E" stroke-width="3"/><path d="M30 0V36M0 18H60" stroke="#fff" stroke-width="11"/><path d="M30 0V36M0 18H60" stroke="#C8102E" stroke-width="6"/></svg>',
+    "fr": '<svg viewBox="0 0 30 18"><rect width="10" height="18" fill="#0055A4"/><rect x="10" width="10" height="18" fill="#fff"/><rect x="20" width="10" height="18" fill="#EF4135"/></svg>',
+}
+LANG_NAMES = {"bg": "Български", "en": "English", "fr": "Français"}
+
 CSS = """
-:root{color-scheme:dark;--page:#262421;--surface:#312e2b;--surface-2:#1f1d1b;--ink:#f0efec;--ink-2:#c9c7bf;--muted:#8f8c84;
---accent:#81b64c;--accent-ink:#9ec27f;--good:#2fae2f;--bad:#d64545;--border:rgba(255,255,255,.08);--border-strong:rgba(255,255,255,.16);
---hover:#3a3733;--grid:#34312d;--axis:#45413c;--series:#5b9ee9}
-*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:1120px;margin:0 auto;padding:32px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px))}
-h1{font-size:30px;margin:0 0 4px;text-wrap:balance}
-h2{font-size:23px;margin:48px 0 8px;padding-top:12px;border-top:1px solid var(--border);text-wrap:balance;scroll-margin-top:12px}
+:root{color-scheme:dark;--page:#0c1117;--surface:#151d27;--surface-2:#10161e;--side:#182540;--side-line:#34507e;
+--ink:#e8edf2;--ink-2:#c3ccd6;--muted:#93a1ae;--accent:#6d9dff;--accent-soft:#1c2b45;--accent-ink:#9dbcff;--on-accent:#0c1117;
+--good:#4cc38a;--bad:#e5574c;--warn:#f0a64a;--border:#263241;--border-strong:#34465c;--hover:#1c2b45;--grid:#1c2633;--axis:#34465c;
+--series:#6d9dff;--font:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:16px/1.55 var(--font)}
+.page{max-width:1120px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px));position:relative}
+.langbar{position:absolute;top:28px;right:max(16px,env(safe-area-inset-right,0px));display:inline-flex;gap:2px;padding:3px;border-radius:10px;
+background:var(--surface);border:1px solid var(--border-strong);z-index:3}
+.langbar button{width:40px;height:30px;border:0;border-radius:7px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.langbar button svg{width:24px;height:15px;border-radius:2px;display:block;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.langbar button[aria-pressed="true"]{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.langbar button:hover{background:var(--hover)}.langbar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+main[hidden]{display:none}
+h1{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance;padding-right:150px}
+h2{font-size:23px;font-weight:700;margin:48px 0 8px;padding-top:14px;border-top:1px solid var(--border);text-wrap:balance;scroll-margin-top:12px}
 h3{font-size:18px;margin:24px 0 6px}p,li{color:var(--ink-2);max-width:75ch}b,strong{color:var(--ink)}
-a{color:var(--series)}.sub{color:var(--muted);margin:0 0 20px}
+a{color:var(--accent)}.sub{color:var(--muted);margin:0 0 20px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0}
-.tile{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.tile .v{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}.tile .l{color:var(--muted);font-size:14px}
-.panel{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px}
-.callout{background:var(--surface);border-left:4px solid var(--accent);border-radius:6px;padding:12px 16px;margin:20px 0}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.tile .v{font-size:30px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.tile:first-child .v{color:var(--accent)}
+.tile .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.panel{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px}
+.callout{background:var(--side);border:1px solid var(--side-line);border-radius:12px;padding:12px 16px;margin:20px 0}
 .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:12px}.vgrid>*{min-width:0}
 .lg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;margin-top:12px}
 @media (max-width:860px){.lg{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){h1{padding-right:0;margin-top:44px}}
 table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
-th{color:var(--muted);font-weight:600}td{color:var(--ink-2)}td.num{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink)}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.07em}td{color:var(--ink-2)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink)}
 .scroll{overflow-x:auto}.hint{color:var(--muted);font-size:14px}
 .tag{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:99px;white-space:nowrap}
-.tag.w{background:rgba(47,174,47,.18);color:#8fdc8f}.tag.l{background:rgba(214,69,69,.2);color:#f2a5a5}.tag.n{background:rgba(255,255,255,.08);color:var(--ink-2)}
+.tag.w{background:rgba(76,195,138,.16);color:#7ddcaa}.tag.l{background:rgba(229,87,76,.18);color:#f2a39b}.tag.n{background:var(--accent-soft);color:var(--accent-ink)}
 .bars{display:grid;gap:8px;margin-top:10px;max-width:640px}
 .bar{display:grid;grid-template-columns:170px 1fr 54px;gap:10px;align-items:center;font-size:14px;color:var(--ink-2)}
-.bar .track{height:12px;background:var(--surface-2);border-radius:6px;overflow:hidden}.bar .fill{height:100%;background:var(--series);border-radius:6px}
+.bar .track{height:10px;background:var(--accent-soft);border-radius:5px;overflow:hidden}.bar .fill{height:100%;background:var(--accent);border-radius:5px}
 .bar .fill.low{background:var(--bad)}.bar .pct{font-variant-numeric:tabular-nums;color:var(--ink);text-align:right}
 @media (max-width:520px){.bar{grid-template-columns:110px 1fr 46px}}
 .toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
 .toc a{color:var(--ink);text-decoration:none;font-size:14px;font-weight:600;padding:6px 12px;border-radius:99px;background:var(--surface);border:1px solid var(--border-strong)}
-.toc a:hover{background:var(--hover)}.toc a.hot{background:var(--accent);border-color:var(--accent);color:#1b1a18}
+.toc a:hover{background:var(--hover)}.toc a.hot{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 details.fold>summary{list-style:none;cursor:pointer}details.fold>summary::-webkit-details-marker{display:none}
 details.fold>summary h2{display:flex;align-items:center;gap:10px}
 details.fold>summary h2::after{content:"";width:9px;height:9px;margin-left:auto;flex:none;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform .2s}
 details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
-.goto{font:inherit;font-weight:700;color:var(--series);background:none;border:0;border-bottom:1px dashed currentColor;padding:0;cursor:pointer}
-.goto:hover{color:var(--ink)}.san{color:var(--muted);font-size:.85em;font-family:Consolas,ui-monospace,monospace}code{font:600 13px Consolas,ui-monospace,monospace;color:var(--accent-ink)}html{scroll-behavior:smooth}
+.goto{font:inherit;font-weight:700;color:var(--accent);background:none;border:0;border-bottom:1px dashed currentColor;padding:0;cursor:pointer}
+.goto:hover{color:var(--ink)}.san{color:var(--muted);font-size:.85em;font-family:var(--mono)}code{font:600 13px var(--mono);color:var(--accent-ink)}html{scroll-behavior:smooth}
 .chart{width:100%;height:auto;display:block}.chart .grid{stroke:var(--grid)}.chart .axis{stroke:var(--axis)}
-.chart .tick{fill:var(--muted);font:12px system-ui,sans-serif}.chart .line{fill:none;stroke:var(--series);stroke-width:1.6}
-.chart .dot.win{fill:var(--good)}.chart .dot.loss{fill:var(--bad)}.chart .dot.draw{fill:var(--muted)}.chart .pt:hover .dot{r:5}
-.chart .ann{fill:var(--ink);font:700 13px system-ui,sans-serif}.chart .peak{fill:none;stroke:var(--ink);stroke-width:2}
-.viewer{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;outline:none}
+.chart .tick{fill:var(--muted);font:12px var(--font)}.chart .line{fill:none;stroke:var(--series);stroke-width:1.8}
+.chart .dot.win{fill:var(--good)}.chart .dot.loss{fill:var(--bad)}.chart .dot.draw{fill:var(--muted)}
+.chart .ann{fill:var(--ink);font:700 13px var(--font)}.chart .peak{fill:none;stroke:var(--ink);stroke-width:2}
+.viewer{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;outline:none}
 .viewer:focus-visible{box-shadow:0 0 0 2px var(--accent)}.v-title{font-weight:700;font-size:16px}
-.v-moves{font:600 13px/1.4 Consolas,ui-monospace,monospace;color:var(--accent-ink);min-height:1.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
-.v-moves span{direction:ltr;unicode-bidi:bidi-override}.v-board svg{display:block;width:100%;height:auto;max-width:440px;border-radius:4px}
+.v-moves{font:600 13px/1.4 var(--mono);color:var(--accent-ink);min-height:1.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.v-moves span{direction:ltr;unicode-bidi:bidi-override}.v-board svg{display:block;width:100%;height:auto;max-width:460px;border-radius:7px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
 .v-cap{margin:0;min-height:3.1em;color:var(--ink-2);font-size:15px}.v-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.v-controls button{font:600 15px system-ui,sans-serif;min-width:40px;height:38px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);cursor:pointer}
+.v-controls button{font:600 15px var(--font);min-width:40px;height:38px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);cursor:pointer}
 .v-controls button:hover:not(:disabled){background:var(--hover)}.v-controls button:disabled{opacity:.35;cursor:default}
-.v-count{min-width:64px;white-space:nowrap;text-align:center;font:700 15px system-ui,sans-serif;font-variant-numeric:tabular-nums}.v-play{margin-left:auto}
+.v-controls .v-play{margin-left:auto;background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.v-count{min-width:64px;white-space:nowrap;text-align:center;font:700 15px var(--font);font-variant-numeric:tabular-nums}
 .chart-wrap{position:relative}.chart .guide{stroke:var(--muted);stroke-dasharray:3 3}.chart .hot{fill:none;stroke:var(--ink);stroke-width:2}.chart .hit{cursor:pointer}.chart:focus{outline:none}
-.chart-tip{position:absolute;z-index:5;pointer-events:none;min-width:210px;max-width:290px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink-2);box-shadow:0 6px 20px rgba(0,0,0,.45)}
-.chart-tip .tt-h{display:flex;justify-content:space-between;gap:10px;color:var(--ink);font-weight:700;font-size:14px;margin-bottom:4px}.chart-tip .tt-r{display:flex;justify-content:space-between;gap:12px}.chart-tip .tt-r b{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}.chart-tip .up{color:#8fdc8f}.chart-tip .down{color:#f2a5a5}.chart-tip .tt-f{color:var(--muted);font-size:12px;margin-top:6px}
+.chart-tip{position:absolute;z-index:5;pointer-events:none;min-width:210px;max-width:290px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink-2);box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.chart-tip .tt-h{display:flex;justify-content:space-between;gap:10px;color:var(--ink);font-weight:700;font-size:14px;margin-bottom:4px}.chart-tip .tt-r{display:flex;justify-content:space-between;gap:12px}.chart-tip .tt-r b{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}.chart-tip .up{color:#7ddcaa}.chart-tip .down{color:#f2a39b}.chart-tip .tt-f{color:var(--muted);font-size:12px;margin-top:6px}
+.c1{--c:#6d9dff}.c2{--c:#34d3c1}.c3{--c:#b18cff}.c4{--c:#ff9a55}.c5{--c:#ff6fae}.c6{--c:#f0b44c}.c7{--c:#5fd68b}.c8{--c:#8b85ff}
+nav.toc-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin:22px 0;padding:0}
+nav.toc-card>details>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:14px 22px;font-weight:700;font-size:18px}
+nav.toc-card>details>summary::-webkit-details-marker{display:none}
+nav.toc-card>details>summary::after{content:"";width:9px;height:9px;margin-left:auto;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform .2s}
+nav.toc-card>details:not([open])>summary::after{transform:rotate(-45deg)}
+nav.toc-card ol{list-style:none;margin:0;padding:0 16px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 12px}
+nav.toc-card a{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-weight:600;font-size:15px;padding:6px 10px;border-radius:8px;
+border-left:3px solid transparent;transition:background .2s,border-color .2s,padding-left .2s}
+nav.toc-card a .num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#0c1117;background:var(--c);flex:none}
+nav.toc-card a:hover,nav.toc-card a.active{background:color-mix(in srgb,var(--c) 12%,var(--surface));border-left-color:var(--c);padding-left:14px}
+section.card{background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--c);border-radius:14px;padding:4px 24px 20px;margin:22px 0;scroll-margin-top:14px}
+section.card>h2,section.card>details>summary>h2{display:flex;align-items:center;gap:12px;border:0;margin:16px 0 12px;padding:0}
+h2 .num{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;color:#0c1117;font-size:16px;font-weight:800;
+background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 60%,#000))}
+section.card h3{color:var(--c)}
+section.card .tile,section.card .viewer{background:var(--surface-2)}
+#to-top{position:fixed;right:18px;bottom:18px;width:44px;height:44px;border-radius:50%;border:1px solid var(--border-strong);background:var(--accent);color:var(--on-accent);
+font:800 20px var(--font);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s;box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:6}
+#to-top.show{opacity:1;pointer-events:auto}
+@media (max-width:600px){section.card{padding:4px 14px 14px}nav.toc-card ol{grid-template-columns:1fr}}
+@media print{#to-top,.langbar{display:none}section.card{break-inside:auto}}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 """
 
 JS = """
 (function(){
-  const L = JSON.parse(document.getElementById('labels').textContent);
+  const LBL = JSON.parse(document.getElementById('labels').textContent);
+  const LANGS = Object.keys(LBL);
   const data = JSON.parse(document.getElementById('viewer-data').textContent);
   document.querySelectorAll('[data-viewer]').forEach(function(root){
+    const lang = root.closest('main').dataset.lang, L = LBL[lang];
     const v = data[root.dataset.viewer]; if (!v) return; const fr = v.frames;
     const board = root.querySelector('.v-board'), moves = root.querySelector('.v-moves'), cap = root.querySelector('.v-cap'),
           count = root.querySelector('.v-count'), btn = function(a){ return root.querySelector('[data-act="'+a+'"]'); }, play = btn('play');
     let i = 0, timer = null;
     function show(n){
       i = Math.max(0, Math.min(fr.length - 1, n));
-      board.innerHTML = fr[i].svg; moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves;
-      cap.innerHTML = fr[i].caption;
+      board.innerHTML = fr[i].svg; moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
+      cap.innerHTML = fr[i].caption[lang];
       const ply = fr[i].ply;
       count.textContent = (ply === 0 ? L.start : L.move + ' ' + Math.ceil(ply / 2) + (ply % 2 ? '.' : '...')) + ' · ' + (i + 1) + ' / ' + fr.length;
       btn('first').disabled = btn('prev').disabled = i === 0;
@@ -221,12 +278,14 @@ JS = """
   });
   document.addEventListener('click', function(e){
     const g = e.target.closest('[data-goto]'); if (!g) return;
-    const root = document.getElementById('v-' + g.dataset.goto); if (!root || !root._show) return;
+    const main = g.closest('main'), root = document.getElementById('v-' + main.dataset.lang + '-' + g.dataset.goto);
+    if (!root || !root._show) return;
     root._show(+g.dataset.ply);
     const r = root.getBoundingClientRect(); if (r.top < 0 || r.bottom > innerHeight) root.scrollIntoView({block: 'nearest'});
     root.focus({preventScroll: true});
   });
   document.querySelectorAll('.chart-wrap').forEach(function(wrap){
+    const L = LBL[wrap.closest('main').dataset.lang];
     const svg = wrap.querySelector('svg'), tip = wrap.querySelector('.chart-tip'),
           data = JSON.parse(wrap.querySelector('.chart-data').textContent),
           guide = svg.querySelector('.guide'), hot = svg.querySelector('.hot'), hit = svg.querySelector('.hit');
@@ -248,7 +307,7 @@ JS = """
       let when = d.date;  // end of the game in the viewer's own time zone
       const dt = d.ts ? new Date(d.ts) : null;
       if (dt && !isNaN(dt)) {
-        const lang = document.documentElement.lang || undefined;
+        const lang = wrap.closest('main').dataset.lang || undefined;
         when = dt.toLocaleDateString(lang, {day: 'numeric', month: 'numeric', year: 'numeric'}) + ' · '
              + dt.toLocaleTimeString(lang, {hour: '2-digit', minute: '2-digit'});
       }
@@ -280,8 +339,41 @@ JS = """
     });
     svg.addEventListener('blur', hide);
   });
+  function setLang(l){
+    if (LANGS.indexOf(l) < 0) l = LANGS[0];
+    document.querySelectorAll('main[data-lang]').forEach(function(m){ m.hidden = m.dataset.lang !== l; });
+    document.querySelectorAll('.langbar button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.lang === l)); });
+    document.documentElement.lang = l;
+    const h1 = document.querySelector('main[data-lang="' + l + '"] h1'); if (h1) document.title = h1.textContent;
+    try { localStorage.setItem('chess-report-lang', l); } catch (e) {}
+  }
+  document.querySelectorAll('.langbar button').forEach(function(b){ b.addEventListener('click', function(){ setLang(b.dataset.lang); }); });
+  let saved = null; try { saved = localStorage.getItem('chess-report-lang'); } catch (e) {}
+  const qs = (location.search.match(/[?&]lang=([a-z]{2})/) || [])[1];
+  setLang(qs || saved || LANGS[0]);
+  document.querySelectorAll('nav.toc-card details').forEach(function(d){
+    try { if (localStorage.getItem('chess-report-toc') === 'closed') d.open = false; } catch (e) {}
+    d.addEventListener('toggle', function(){ try { localStorage.setItem('chess-report-toc', d.open ? 'open' : 'closed'); } catch (e) {} });
+  });
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        const main = en.target.closest('main');
+        main.querySelectorAll('nav.toc-card a').forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#' + en.target.id); });
+      });
+    }, {rootMargin: '-20% 0px -70% 0px'});
+    document.querySelectorAll('section.card[id]').forEach(function(s){ io.observe(s); });
+  }
+  const topBtn = document.getElementById('to-top');
+  if (topBtn) {
+    const onScroll = function(){ topBtn.classList.toggle('show', window.scrollY > 500); };
+    window.addEventListener('scroll', onScroll, {passive: true});
+    topBtn.addEventListener('click', function(){ window.scrollTo({top: 0}); });
+    onScroll();
+  }
   function openTarget(id){ const el = id && document.getElementById(id); if (el && el.tagName === 'DETAILS') el.open = true; }
-  document.querySelectorAll('.toc a').forEach(function(a){ a.addEventListener('click', function(){ openTarget(a.getAttribute('href').slice(1)); }); });
+  document.querySelectorAll('nav.toc-card a').forEach(function(a){ a.addEventListener('click', function(){ openTarget(a.getAttribute('href').slice(1)); }); });
   openTarget(location.hash.slice(1));
 })();
 """
@@ -301,8 +393,10 @@ def load_games(out):
     return rows, pgns
 
 
-def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None):
-    """Frames for plies from_ply..to_ply (position after `ply` half-moves). Notes keyed by ply-after (frame number)."""
+def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None, langs=("en",), words=None):
+    """Frames for plies from_ply..to_ply (position after `ply` half-moves). Notes keyed by ply-after (frame number);
+    a note may be a {lang: text} dict. Captions and move lines are stored per language."""
+    words = words or {}
     if isinstance(game_or_moves, str):
         b0 = chess.Board()
         moves = []
@@ -319,24 +413,26 @@ def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None)
         if k < from_ply:
             continue
         check = b.king(b.turn) if b.is_check() else None
-        arr = [chess.svg.Arrow(chess.parse_square(a), chess.parse_square(z), color=ARROW.get(c, c))
-               for a, z, c in arrows.get(str(k), [])]
-        fill = {chess.parse_square(s): ARROW.get(c, c) for s, c in fills.get(str(k), {}).items()}
-        svg = chess.svg.board(b, orientation=orient, lastmove=b.peek() if b.move_stack else None, check=check,
-                              arrows=arr, fill=fill, size=400, colors=COLORS)
+        arr = [(chess.parse_square(a), chess.parse_square(z), c) for a, z, c in arrows.get(str(k), [])]
+        fill = {chess.parse_square(s): c for s, c in fills.get(str(k), {}).items()}
+        svg = board_svg.render(b, orient, b.peek() if b.move_stack else None, check, arr, fill)
         start = max(0, k - 8)
         tmp = chess.Board()
         for m in moves[:start]:
             tmp.push(m)
         line = ("... " if start else "") + tmp.variation_san(moves[start:k]) if k else ""
-        out.append({"svg": DEFS_RE.sub("", svg, count=1), "moves": WORDS(line, True) if WORDS else line,
-                    "caption": WORDS(caption) if WORDS else caption, "ply": k})
+        caps, lines = {}, {}
+        for lang in langs:
+            w, c = words.get(lang), tr(caption, lang, langs[0])
+            caps[lang] = w(c) if w else c
+            lines[lang] = w(line, True) if w else line
+        out.append({"svg": svg, "moves": lines, "caption": caps, "ply": k})
     return out
 
 
-def viewer_html(vid, title, L):
+def viewer_html(vid, title, L, lang):
     t = H.escape(title)
-    return (f'<figure class="viewer" id="v-{vid}" data-viewer="{vid}" tabindex="0" aria-label="{t}">'
+    return (f'<figure class="viewer" id="v-{lang}-{vid}" data-viewer="{vid}" tabindex="0" aria-label="{t}">'
             f'<figcaption class="v-title">{t}</figcaption><div class="v-moves" aria-live="polite"></div><div class="v-board"></div>'
             f'<p class="v-cap" aria-live="polite"></p><div class="v-controls">'
             f'<button type="button" data-act="first" aria-label="{L["first"]}">&#9198;</button>'
@@ -412,11 +508,16 @@ def main():
     a = ap.parse_args()
     out = pathlib.Path(a.dir)
     spec = json.loads(pathlib.Path(a.spec or out / "report_spec.json").read_text(encoding="utf-8"))
-    L = dict(LABELS["en"])
-    L.update(LABELS.get(spec.get("lang", "en"), {}))
-    L.update(spec.get("labels", {}))
-    global WORDS
-    WORDS = words_for(spec)
+    langs = spec.get("langs") or [spec.get("lang", "en")]
+    first = langs[0]
+    LL, words = {}, {}
+    for lang in langs:
+        L = dict(LABELS["en"])
+        L.update(LABELS.get(lang, {}))
+        lab = spec.get("labels", {})  # either {key: text} or {lang: {key: text}}
+        L.update(lab.get(lang, {}) if any(k in LABELS for k in lab) else lab)
+        LL[lang] = L
+        words[lang] = words_for(spec, lang)
     rows, pgns = load_games(out)
     by_n = {r["n"]: r for r in rows}
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8")) if (out / "summary.json").exists() else {}
@@ -434,55 +535,78 @@ def main():
             src = pgns[by_n[int(v["game"])]["link"]]
         orient = chess.BLACK if v.get("orientation", "white") == "black" else chess.WHITE
         fr = frames(src, orient, v.get("notes", {}), v.get("arrows", {}), v.get("fills", {}),
-                    v.get("from_ply", 0), v.get("to_ply"))
+                    v.get("from_ply", 0), v.get("to_ply"), langs, words)
         vdata[vid] = {"frames": fr, "start": v.get("start_index", 0)}
 
-    def fill(text):
-        text = text.replace("{{CHART}}", rating_chart(rows, summary.get("main_time_class"), L) if rows else "")
-        text = re.sub(r"\{\{V:([\w-]+)\}\}", lambda m: viewer_html(m.group(1), viewers[m.group(1)].get("title", ""), L), text)
-        return re.sub(r"\{\{GOTO:([\w-]+):(\d+):([^}]*)\}\}",
-                      lambda m: f'<button type="button" class="goto" data-goto="{m.group(1)}" data-ply="{m.group(2)}" '
-                                f'aria-label="{L["show"]}">{m.group(3)}</button>', text)
+    def block(lang):
+        L, T = LL[lang], (lambda v: tr(v, lang, first))
 
-    toc, body = [], []
-    if ga:
-        toc.append(f'<a class="hot" href="#game-analysis">{L["game_analysis"]}</a>')
-    for s in spec.get("sections", []):
-        if s.get("toc", True):
-            toc.append(f'<a href="#{s["id"]}">{H.escape(s.get("toc_title", s["title"]))}</a>')
-    tiles = "".join(f'<div class="tile"><div class="v">{t["value"]}</div><div class="l">{t["label"]}</div></div>'
-                    for t in spec.get("tiles", []))
-    head = (f'<h1>{H.escape(spec["title"])}</h1><p class="sub">{spec.get("subtitle", "")}</p>'
-            f'<nav class="toc" aria-label="{L["contents"]}">{"".join(toc)}</nav>')
-    if ga:
-        body.append(f'<details class="fold" id="game-analysis" open><summary><h2>{H.escape(ga["title"])}</h2></summary>'
-                    f'<p class="sub">{ga.get("sub_html", "")}</p><div class="lg"><div>{{{{V:game}}}}</div><div>{ga["html"]}</div></div>'
-                    f'</details>')
-    if tiles:
-        body.append(f'<div class="tiles">{tiles}</div>')
-    if spec.get("summary_html"):
-        body.append(f'<div class="callout">{spec["summary_html"]}</div>')
-    for s in spec.get("sections", []):
-        body.append(f'<h2 id="{s["id"]}">{H.escape(s["title"])}</h2>{s["html"]}')
-    if spec.get("footer_html"):
-        body.append(f'<p class="hint" style="margin-top:32px">{spec["footer_html"]}</p>')
-    content = fill(head + "".join(body))
-    if WORDS:
-        content = WORDS(content)
-    leftover = re.search(r"\{\{[^}]*\}\}", content)
-    assert not leftover, f"unresolved placeholder: {leftover.group(0)}"
+        def fill(text):
+            text = text.replace("{{CHART}}", rating_chart(rows, summary.get("main_time_class"), L) if rows else "")
+            text = re.sub(r"\{\{V:([\w-]+)\}\}",
+                          lambda m: viewer_html(m.group(1), T(viewers[m.group(1)].get("title", "")), L, lang), text)
+            return re.sub(r"\{\{GOTO:([\w-]+):(\d+):([^}]*)\}\}",
+                          lambda m: f'<button type="button" class="goto" data-goto="{m.group(1)}" data-ply="{m.group(2)}" '
+                                    f'aria-label="{L["show"]}">{m.group(3)}</button>', text)
 
-    defs = DEFS_RE.search(chess.svg.board(chess.Board(), check=chess.E1)).group(0)
+        toc, body = [], []
+        secs = []  # (id, number, title, toc title, html, colour class)
+        if ga:
+            secs.append((f"{lang}-game-analysis", "♞", T(ga["title"]), T(ga.get("toc_title", L["game_analysis"])), None, "c1"))
+        k = 0
+        for s in spec.get("sections", []):
+            title = T(s["title"])
+            m = re.match(r"^(\d+)\.\s*(.*)$", title)
+            num, title = (m.group(1), m.group(2)) if m else (str(k + 1), title)
+            secs.append((f'{lang}-{s["id"]}', num, title, T(s.get("toc_title", s["title"])), T(s["html"]), f"c{k % 8 + 1}"))
+            k += 1
+        for sid, num, title, toc_t, _, cc in secs:
+            toc.append(f'<li><a href="#{sid}" class="{cc}"><span class="num">{num}</span>{H.escape(re.sub(r"^\d+\.\s*", "", toc_t))}</a></li>')
+        tiles = "".join(f'<div class="tile"><div class="v">{T(t_["value"])}</div><div class="l">{T(t_["label"])}</div></div>'
+                        for t_ in spec.get("tiles", []))
+        head = (f'<h1>{H.escape(T(spec["title"]))}</h1><p class="sub">{T(spec.get("subtitle", ""))}</p>'
+                f'<nav class="toc-card" aria-label="{L["contents"]}"><details open><summary>{L["contents"]}</summary>'
+                f'<ol>{"".join(toc)}</ol></details></nav>')
+        if tiles:
+            body.append(f'<div class="tiles">{tiles}</div>')
+        if spec.get("summary_html"):
+            body.append(f'<div class="callout">{T(spec["summary_html"])}</div>')
+        for sid, num, title, _, html_, cc in secs:
+            if html_ is None:  # the game analysis, collapsible
+                body.append(f'<section class="card {cc}" id="{sid}"><details class="fold" open><summary><h2><span class="num">{num}</span>'
+                            f'{H.escape(title)}</h2></summary><p class="sub">{T(ga.get("sub_html", ""))}</p><div class="lg"><div>{{{{V:game}}}}</div>'
+                            f'<div>{T(ga["html"])}</div></div></details></section>')
+            else:
+                body.append(f'<section class="card {cc}" id="{sid}"><h2><span class="num">{num}</span>{H.escape(title)}</h2>{html_}</section>')
+        if spec.get("footer_html"):
+            body.append(f'<p class="hint" style="margin-top:32px">{T(spec["footer_html"])}</p>')
+        content = fill(head + "".join(body))
+        if words.get(lang):
+            content = words[lang](content)
+        leftover = re.search(r"\{\{[^}]*\}\}", content)
+        assert not leftover, f"unresolved placeholder: {leftover.group(0)}"
+        return f'<main data-lang="{lang}" lang="{lang}">{content}</main>'
+
+    mains = "".join(block(lang) for lang in langs)
+    switcher = ""
+    if len(langs) > 1:
+        switcher = ('<div class="langbar" role="group" aria-label="Language">' + "".join(
+            f'<button type="button" data-lang="{lg}" aria-pressed="{str(lg == first).lower()}" '
+            f'title="{LANG_NAMES.get(lg, lg)}" aria-label="{LANG_NAMES.get(lg, lg)}">{FLAGS.get(lg, lg.upper())}</button>'
+            for lg in langs) + "</div>")
     payload = json.dumps(vdata, ensure_ascii=False).replace("</", "<\\/")
     icon = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' "
-            "rx='14' fill='%23769656'/%3E%3Ctext x='32' y='51' font-size='50' text-anchor='middle' fill='%23ffffff'%3E%E2%99%9E"
+            "rx='14' fill='%231f5fd6'/%3E%3Ctext x='32' y='51' font-size='50' text-anchor='middle' fill='%23ffffff'%3E%E2%99%9E"
             "%3C/text%3E%3C/svg%3E")
-    page = (f'<!doctype html><html lang="{spec.get("lang", "en")}"><head><meta charset="utf-8">'
+    fonts = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" '
+             'href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">')
+    page = (f'<!doctype html><html lang="{first}"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-            f'<title>{H.escape(spec.get("page_title", spec["title"]))}</title><link rel="icon" type="image/svg+xml" href="{icon}">'
-            f'<style>{CSS}</style></head><body><main>{content}</main>'
-            f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{defs}</svg>'
-            f'<script type="application/json" id="labels">{json.dumps(L, ensure_ascii=False)}</script>'
+            f'<title>{H.escape(tr(spec.get("page_title", spec["title"]), first, first))}</title><link rel="icon" type="image/svg+xml" href="{icon}">'
+            f'{fonts}<style>{CSS}</style></head><body><div class="page">{switcher}{mains}</div>'
+            f'<button type="button" id="to-top" aria-label="{LL[first]["top"]}">&#8593;</button>'
+            f'<svg width="0" height="0" style="position:absolute" aria-hidden="true">{board_svg.DEFS}</svg>'
+            f'<script type="application/json" id="labels">{json.dumps(LL, ensure_ascii=False)}</script>'
             f'<script type="application/json" id="viewer-data">{payload}</script><script>{JS}</script></body></html>')
     dest = pathlib.Path(a.out or out / "report.html")
     dest.write_text(page, encoding="utf-8")

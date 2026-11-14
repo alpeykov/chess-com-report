@@ -4,7 +4,8 @@
 
 ```json
 {
-  "lang": "fr",                       // en | fr | bg (button/chart labels); other languages: add "labels"
+  "langs": ["bg", "en", "fr"],        // first = default; then every text field may be {"bg": .., "en": .., "fr": ..}
+  "lang": "fr",                       // single-language reports only (used when "langs" is missing)
   "labels": {"move": "Zug"},          // optional overrides of the built-in labels
   "piece_words": "both",              // optional: true = moves written with piece names ("Bxe4" -> "Fou prend e4"),
                                       // "both" = names plus the standard notation in grey, {"Q": "..."} = own words
@@ -59,3 +60,7 @@ report language (bg: Цар, Царица, Топ, Офицер, Кон, пеш�
 `e4` are named only after a move number or next to another move, so a square in a sentence stays a square.
 To show the two side by side in a table, put the move twice: `<span class="words-only">Bxe4?</span>` (names only)
 and `<code>Bxe4?</code>` (left in standard notation).
+
+## Sections and contents
+
+Section titles may start with their number ("3. Openings"): the number goes into the coloured badge and the contents card. The game analysis gets a knight badge and comes first. `toc_title` is the short name used in the contents card.
