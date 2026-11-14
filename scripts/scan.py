@@ -4,7 +4,7 @@ Whole history (player's moves only):
   python scan.py USERNAME --dir OUT [--games N] [--depth 3] [--jobs N]
   -> OUT/flagged.json: moves where the player lost material or missed a win/mate, sorted by size.
      All games are scanned by default (--games N limits it to the last N), in parallel on all CPU cores.
-     The biggest items (--verify-top, default 200) are re-checked at depth 5 with the best line ("line") and what happened after the played move ("after").
+     The biggest items of each kind (--verify-top, default 240 = 60 per kind) are re-checked at depth 5 with the best line ("line") and what happened after the played move ("after").
 
 One game (both sides, every move printed):
   python scan.py USERNAME --dir OUT --pgn OUT/last.pgn
@@ -15,6 +15,7 @@ BEFORE the move (0 = the first move of the game). In the step-through viewer the
 move is frame ply+1. White's move N is ply 2N-2, Black's move N is ply 2N-1.
 """
 import argparse
+import collections
 import multiprocessing
 import os
 import io
@@ -93,7 +94,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="parallel processes (default: all cores)")
     ap.add_argument("--depth", type=int, default=3)
     ap.add_argument("--pgn", help="scan a single game, both sides")
-    ap.add_argument("--verify-top", type=int, default=200)
+    ap.add_argument("--verify-top", type=int, default=240, help="moves re-checked at depth 5, split evenly over the four kinds")
     a = ap.parse_args()
     me = a.username.strip().lower()
     out = pathlib.Path(a.dir)
@@ -127,9 +128,16 @@ def main():
             if k % 10 == 0 or k == len(jobs):
                 print(f"scanned {k}/{len(jobs)}", file=sys.stderr, flush=True)
         flagged.sort(key=lambda f: -f["drop"])
-        top = verify(flagged[:a.verify_top], pool=pool)
-        flagged = top + flagged[a.verify_top:]
-        print(f"verified {len(top)} at depth 5", file=sys.stderr, flush=True)
+        # verify the biggest items of EACH kind: sorting by drop alone fills the list with mates only
+        per_kind = max(1, a.verify_top // 4)
+        pick, seen = [], collections.Counter()
+        for i, f in enumerate(flagged):
+            if seen[f["kind"]] < per_kind:
+                seen[f["kind"]] += 1
+                pick.append(i)
+        for i, f in zip(pick, verify([flagged[i] for i in pick], pool=pool)):
+            flagged[i] = f
+        print(f"verified {len(pick)} at depth 5: {dict(seen)}", file=sys.stderr, flush=True)
     flagged = [f for f in flagged if f.get("confirmed", True)]
     kinds = {}
     for f in flagged:

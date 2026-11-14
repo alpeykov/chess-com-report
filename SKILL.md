@@ -34,7 +34,7 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
    **Every number in the report must come from these files.** Recompute with a short Python snippet over `games.json` when you need a number they do not have; never estimate.
 
 3. **Mistake scan (history)**
-   `python scan.py USERNAME --dir OUT` (all games, in parallel on all cores; `--games N` = only the last N) → `OUT/flagged.json`: the player's moves that lost material, allowed mate, missed a mate or missed free material. The top items are re-checked at depth 5 and carry `line` (best line) and `after` (what the played move allowed); the rest keep only the depth-3 result. About 1 minute per 16 games on 16 cores; run it in the background.
+   `python scan.py USERNAME --dir OUT` (all games, in parallel on all cores; `--games N` = only the last N) → `OUT/flagged.json`: the player's moves that lost material, allowed mate, missed a mate or missed free material. The 60 biggest items of each kind (missed mate, allowed mate, lost material, missed gain) are re-checked at depth 5 and carry `line` (best line) and `after` (what the played move allowed); the rest keep only the depth-3 result. About 1 minute per 16 games on 16 cores; run it in the background.
    Group the flagged moves into **recurring patterns** (e.g. "queen left undefended", "missed back-rank mate", "missed fork"). Pick 2-4 clear examples per pattern for boards.
 
 4. **Last game (both sides)**
