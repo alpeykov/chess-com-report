@@ -40,19 +40,19 @@ LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
-               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", next_section="Next section", collapse="Hide", expand="Show",
+               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", white_chances="White's winning chances", next_section="Next section", collapse="Hide", expand="Show",
                tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
-               game_analysis="Dernière partie", top="Haut de page", next_section="Section suivante", collapse="Masquer", expand="Afficher",
+               game_analysis="Dernière partie", top="Haut de page", white_chances="Chances des Blancs", next_section="Section suivante", collapse="Masquer", expand="Afficher",
                tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
-               game_analysis="Последна партия", top="Към началото", next_section="Следващ раздел", collapse="Скрий", expand="Покажи",
+               game_analysis="Последна партия", top="Към началото", white_chances="Шанс за белите", next_section="Следващ раздел", collapse="Скрий", expand="Покажи",
                tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
@@ -211,6 +211,7 @@ details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 .viewer:focus-visible{box-shadow:0 0 0 2px var(--accent)}.v-title{font-weight:700;font-size:16px}
 .v-moves{font:600 13px/1.4 var(--mono);color:var(--accent-ink);min-height:1.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
 .v-moves span{direction:ltr;unicode-bidi:bidi-override}.v-board svg{display:block;width:100%;height:auto;max-width:460px;border-radius:7px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.v-eval{cursor:pointer;max-width:460px}.v-eval svg{display:block;width:100%;height:46px;border-radius:6px;border:1px solid var(--border)}.v-eval span{display:block;font-size:12px;color:var(--muted);margin-top:3px}.v-eval b{color:var(--ink)}
 .v-cap{margin:0;min-height:3.1em;color:var(--ink-2);font-size:15px}.v-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .v-controls button{font:600 15px var(--font);min-width:40px;height:38px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);cursor:pointer}
 .v-controls button:hover:not(:disabled){background:var(--hover)}.v-controls button:disabled{opacity:.35;cursor:default}
@@ -247,6 +248,18 @@ font:800 20px var(--font);cursor:pointer;opacity:0;pointer-events:none;transitio
 JS = """
 (function(){
   const LBL = JSON.parse(document.getElementById('labels').textContent);
+  function evalGraph(root, ev, ply, L, jump){
+    let g = root.querySelector('.v-eval');
+    if (!g) { g = document.createElement('div'); g.className = 'v-eval'; root.querySelector('.v-board').after(g);
+      g.addEventListener('click', function(e){ const r = g.getBoundingClientRect(); jump(Math.round((e.clientX - r.left) / r.width * (ev.length - 1))); }); }
+    const W = 360, H = 64, n = ev.length - 1, x = function(i){ return (i / Math.max(1, n)) * W; }, y = function(w){ return H - w / 100 * H; };
+    let d = 'M0 ' + H; ev.forEach(function(w, i){ d += ' L' + x(i).toFixed(1) + ' ' + y(w).toFixed(1); }); d += ' L' + W + ' ' + H + ' Z';
+    const cur = Math.min(ply, n), w = ev[cur];
+    g.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><rect width="' + W + '" height="' + H + '" fill="#1b2433"/>'
+      + '<path d="' + d + '" fill="#e8edf2" opacity=".85"/><line x1="0" x2="' + W + '" y1="' + H / 2 + '" y2="' + H / 2 + '" stroke="#6d9dff" stroke-dasharray="3 3" opacity=".6"/>'
+      + '<line x1="' + x(cur) + '" x2="' + x(cur) + '" y1="0" y2="' + H + '" stroke="#f2b01e" stroke-width="2"/></svg>'
+      + '<span>' + L.white_chances + ': <b>' + Math.round(w) + '%</b></span>';
+  }
   const LANGS = Object.keys(LBL);
   const data = JSON.parse(document.getElementById('viewer-data').textContent);
   document.querySelectorAll('[data-viewer]').forEach(function(root){
@@ -257,7 +270,8 @@ JS = """
     let i = 0, timer = null;
     function show(n){
       i = Math.max(0, Math.min(fr.length - 1, n));
-      board.innerHTML = boardSVG(fr[i], v.o); moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
+      board.innerHTML = boardSVG(fr[i], v.o);
+      if (v.ev) evalGraph(root, v.ev, fr[i].ply, L, function(p){ stop(); const k = fr.findIndex(function(f){ return f.ply === p; }); if (k >= 0) show(k); }); moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
       cap.innerHTML = fr[i].caption[lang];
       const ply = fr[i].ply;
       count.textContent = (ply === 0 ? L.start : L.move + ' ' + Math.ceil(ply / 2) + (ply % 2 ? '.' : '...')) + ' · ' + (i + 1) + ' / ' + fr.length;
@@ -586,6 +600,8 @@ def main():
         fr = frames(src, orient, v.get("notes", {}), v.get("arrows", {}), v.get("fills", {}),
                     v.get("from_ply", 0), v.get("to_ply"), langs, words)
         vdata[vid] = {"frames": fr, "start": v.get("start_index", 0), "o": "b" if orient == chess.BLACK else "w"}
+        if v.get("evals"):  # White's win % after each ply (sf_scan.py), drawn as a graph under the board
+            vdata[vid]["ev"] = v["evals"]
 
     def block(lang):
         L, T = LL[lang], (lambda v: tr(v, lang, first))

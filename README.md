@@ -9,6 +9,16 @@ A Claude skill that builds a personal chess improvement report from a player's p
 
 Requirements: Python 3.9+ and `pip install chess`. No chess.com login is needed, because the games come from the public API.
 
+### Stockfish (optional, recommended)
+
+The deeper analysis (accuracy, move classes, evaluation graph, clock, motifs, puzzles) needs the free [Stockfish](https://github.com/official-stockfish/Stockfish) engine (GPLv3). It is not included here; install it once:
+
+- **Windows:** download `stockfish-windows-x86-64-universal.zip` from the [latest release](https://github.com/official-stockfish/Stockfish/releases/latest), unzip it (e.g. to `C:\projects\stockfish`) and set `STOCKFISH_PATH` to the `.exe`.
+- **Linux (Debian/Ubuntu):** `sudo apt install stockfish` (installs `/usr/games/stockfish`), or download `stockfish-ubuntu-x86-64-avx2.tar` from the release page, unpack it and set `STOCKFISH_PATH`.
+- **macOS:** `brew install stockfish`.
+
+Check: `python -c "import sys; sys.path.insert(0, 'scripts'); import sf_engine; print(sf_engine.find_stockfish())"` prints the path. Without Stockfish the report still works with the built-in material engine.
+
 ## Use
 
 - "Make my chess report. chess.com username: USERNAME, language: French"
@@ -26,3 +36,5 @@ See [SKILL.md](SKILL.md) for the workflow and [references/spec_format.md](refere
 | `scan.py` | Find mistakes and missed mates; verify the key moves at depth 5 |
 | `build_report.py` | Assemble the HTML report from `report_spec.json` |
 | `engine.py` | Small material search (alpha-beta and quiescence), no Stockfish needed |
+| `sf_engine.py`, `sf_scan.py` | Stockfish analysis: accuracy, move classes, phases, clock, motifs, opening exit, puzzles |
+| `board_svg.py` | Board, pieces and background scenes |
