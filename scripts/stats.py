@@ -141,6 +141,10 @@ def summary(rows):
     rated = [r for r in rows if r["time_class"] == main_tc and r["my_elo"]]
     peak = max(rated, key=lambda r: r["my_elo"]) if rated else None
     low = min(rated, key=lambda r: r["my_elo"]) if rated else None
+
+    def span(chunk):  # rating at the start and end of a stretch, in the main time class only
+        rr = [r["my_elo"] for r in chunk if r["time_class"] == main_tc and r["my_elo"]]
+        return [rr[0], rr[-1]] if rr else None
     return {
         "games": len(rows), "first_date": rows[0]["date"], "last_date": rows[-1]["date"],
         "overall": rec(rows), "white": rec([r for r in rows if r["color"] == "white"]),
@@ -148,7 +152,7 @@ def summary(rows):
         "time_classes": dict(tcs), "main_time_class": main_tc,
         "rating": {"first": rated[0]["my_elo"], "now": rated[-1]["my_elo"], "peak": peak["my_elo"], "peak_date": peak["date"],
                    "low": low["my_elo"], "low_date": low["date"]} if rated else None,
-        "last_50": rec(rows[-50:]), "last_50_rating": [rows[-50:][0]["my_elo"], rows[-1]["my_elo"]],
+        "last_50": rec(rows[-50:]), "last_50_rating": span(rows[-50:]),
         "losses_by": dict(collections.Counter(r["how"] for r in L)),
         "wins_by": dict(collections.Counter(r["how"] for r in Wn)),
         "queen_lost_in_losses": sum(bool(r["qlost"]) for r in L),
@@ -158,7 +162,7 @@ def summary(rows):
         "resigned_at_minus3_or_better": [r["n"] for r in L if r["resign_eval"] is not None and r["resign_eval"] >= -3],
         "tilt": tilt(rows), "openings": openings(rows),
         "by_quarter": [dict(range=[c[0]["n"], c[-1]["n"]], dates=[c[0]["date"], c[-1]["date"]], **rec(c),
-                            rating=[c[0]["my_elo"], c[-1]["my_elo"]])
+                            rating=span(c))
                        for c in (rows[len(rows) * k // 4:len(rows) * (k + 1) // 4] for k in range(4)) if c],
     }
 
@@ -167,8 +171,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("username")
     ap.add_argument("--dir", required=True)
-    ap.add_argument("--time-class", default="main",
-                    help="main (default: only the most played time class), all, or bullet/blitz/rapid/daily")
+    ap.add_argument("--time-class", default="all",
+                    help="all (default: every game), main (only the most played time class), or bullet/blitz/rapid/daily")
     a = ap.parse_args()
     out = pathlib.Path(a.dir)
     rows = rows_from((out / "games.pgn").read_text(encoding="utf-8"), a.username.strip().lower())
