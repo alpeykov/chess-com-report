@@ -17,6 +17,18 @@ Requirements: Python 3.9+ and `python-chess` (`pip install chess`). Games come f
 
 Scripts are in `scripts/` (run them from that folder or pass full paths). `OUT` below is a working folder, e.g. `~/Downloads/chess-report-<username>/data`.
 
+**Report folder layout** (keep the root clean, only the report at the top):
+```
+chess-report-<username>/
+  report.html        the report, nothing else in the root
+  data/              games, statistics, scan results, report_spec.json, history.json
+    sf/              Stockfish cache per game
+    logs/            scan output
+    old/             earlier copies of results
+  scripts/           the report's own spec writer (make_spec.py), helpers and a README
+  content/           hand-written material, e.g. recommended resources per language
+```
+
 ## Three commands
 
 | User says | Do |
