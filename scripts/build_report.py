@@ -27,17 +27,20 @@ LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
-               chart="Rating, game by game", contents="Contents", game_analysis="Game analysis"),
+               chart="Rating, game by game", contents="Contents", game_analysis="Game analysis",
+               tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
-               game_analysis="Analyse de partie"),
+               game_analysis="Analyse de partie",
+               tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
-               game_analysis="Анализ на партия"),
+               game_analysis="Анализ на партия",
+               tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
 PIECE_WORDS = {
@@ -113,11 +116,11 @@ def words_for(spec):
         for part in TAG_RE.split(s):
             if part.startswith("<"):
                 low = part.lower()
-                if low.startswith("<code"):
+                if low.startswith(("<code", "<script", "<style")):
                     stack.append("code")
                 elif low.startswith("<span"):
                     stack.append("words" if "words-only" in low else "")
-                elif low.startswith(("</code", "</span")) and stack:
+                elif low.startswith(("</code", "</span", "</script", "</style")) and stack:
                     stack.pop()
                 out.append(part)
             elif "code" in stack:
@@ -177,6 +180,9 @@ details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 .v-controls button{font:600 15px system-ui,sans-serif;min-width:40px;height:38px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);cursor:pointer}
 .v-controls button:hover:not(:disabled){background:var(--hover)}.v-controls button:disabled{opacity:.35;cursor:default}
 .v-count{min-width:64px;white-space:nowrap;text-align:center;font:700 15px system-ui,sans-serif;font-variant-numeric:tabular-nums}.v-play{margin-left:auto}
+.chart-wrap{position:relative}.chart .guide{stroke:var(--muted);stroke-dasharray:3 3}.chart .hot{fill:none;stroke:var(--ink);stroke-width:2}.chart .hit{cursor:pointer}.chart:focus{outline:none}
+.chart-tip{position:absolute;z-index:5;pointer-events:none;min-width:210px;max-width:290px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink-2);box-shadow:0 6px 20px rgba(0,0,0,.45)}
+.chart-tip .tt-h{display:flex;justify-content:space-between;gap:10px;color:var(--ink);font-weight:700;font-size:14px;margin-bottom:4px}.chart-tip .tt-r{display:flex;justify-content:space-between;gap:12px}.chart-tip .tt-r b{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}.chart-tip .up{color:#8fdc8f}.chart-tip .down{color:#f2a5a5}.chart-tip .tt-f{color:var(--muted);font-size:12px;margin-top:6px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 """
 
@@ -219,6 +225,53 @@ JS = """
     root._show(+g.dataset.ply);
     const r = root.getBoundingClientRect(); if (r.top < 0 || r.bottom > innerHeight) root.scrollIntoView({block: 'nearest'});
     root.focus({preventScroll: true});
+  });
+  document.querySelectorAll('.chart-wrap').forEach(function(wrap){
+    const svg = wrap.querySelector('svg'), tip = wrap.querySelector('.chart-tip'),
+          data = JSON.parse(wrap.querySelector('.chart-data').textContent),
+          guide = svg.querySelector('.guide'), hot = svg.querySelector('.hot'), hit = svg.querySelector('.hit');
+    const esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); };
+    let cur = -1;
+    function nearest(evt){
+      const p = svg.createSVGPoint(); p.x = evt.clientX; p.y = evt.clientY;
+      const q = p.matrixTransform(svg.getScreenCTM().inverse());
+      let lo = 0, hi = data.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (data[mid].x < q.x) lo = mid; else hi = mid; }
+      return Math.abs(data[lo].x - q.x) <= Math.abs(data[hi].x - q.x) ? lo : hi;
+    }
+    function show(i){
+      cur = i; const d = data[i];
+      guide.setAttribute('x1', d.x); guide.setAttribute('x2', d.x); guide.setAttribute('visibility', 'visible');
+      hot.setAttribute('cx', d.x); hot.setAttribute('cy', d.y); hot.setAttribute('visibility', 'visible');
+      const how = L['how_' + d.how] || '', ch = d.d > 0 ? '+' + d.d : String(d.d);
+      const resCls = d.res === 'win' ? 'up' : d.res === 'loss' ? 'down' : '';
+      tip.innerHTML = '<div class="tt-h"><span>' + esc(d.date) + (d.time ? ' · ' + esc(d.time) + ' UTC' : '') + '</span><span>' + esc(L.game) + ' ' + d.n + '</span></div>'
+        + '<div class="tt-r"><span>' + esc(L.rating) + '</span><b>' + d.me + ' <span class="' + (d.d > 0 ? 'up' : d.d < 0 ? 'down' : '') + '">(' + ch + ')</span></b></div>'
+        + '<div class="tt-r"><span class="' + resCls + '">' + esc(L[d.res]) + (how ? ', ' + esc(how) : '') + '</span><b>' + esc(L[d.color]) + '</b></div>'
+        + '<div class="tt-r"><span>' + esc(L.vs) + ' ' + esc(d.opp) + '</span><b>' + d.oe + '</b></div>'
+        + (d.op ? '<div class="tt-r"><span>' + esc(L.opening) + '</span><b style="font-weight:600">' + esc(d.op) + '</b></div>' : '')
+        + (d.plies ? '<div class="tt-r"><span>' + esc(L.moves) + '</span><b>' + Math.ceil(d.plies / 2) + '</b></div>' : '')
+        + (d.link ? '<div class="tt-f">' + esc(L.tip_open) + '</div>' : '');
+      tip.hidden = false;
+      const box = wrap.getBoundingClientRect(), r = svg.getBoundingClientRect(), sc = r.width / svg.viewBox.baseVal.width;
+      const px = r.left - box.left + d.x * sc, py = r.top - box.top + d.y * sc, tw = tip.offsetWidth, th = tip.offsetHeight;
+      let left = px + 14; if (left + tw > box.width) left = px - tw - 14; if (left < 0) left = Math.max(0, box.width - tw);
+      let top = py - th / 2; top = Math.max(0, Math.min(top, box.height - th));
+      tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    }
+    function hide(){ cur = -1; tip.hidden = true; guide.setAttribute('visibility', 'hidden'); hot.setAttribute('visibility', 'hidden'); }
+    let lastType = 'mouse';
+    hit.addEventListener('pointermove', function(e){ show(nearest(e)); });
+    hit.addEventListener('pointerdown', function(e){ lastType = e.pointerType; show(nearest(e)); });
+    hit.addEventListener('pointerleave', function(e){ if (e.pointerType === 'mouse') hide(); });
+    hit.addEventListener('click', function(e){ const d = data[nearest(e)]; if (d.link && lastType === 'mouse') window.open(d.link, '_blank', 'noopener'); });
+    svg.setAttribute('tabindex', '0');
+    svg.addEventListener('keydown', function(e){
+      const k = {ArrowRight: 1, ArrowLeft: -1}[e.key];
+      if (!k) { if (e.key === 'Escape') hide(); return; }
+      show(Math.max(0, Math.min(data.length - 1, cur < 0 ? data.length - 1 : cur + k))); e.preventDefault();
+    });
+    svg.addEventListener('blur', hide);
   });
   function openTarget(id){ const el = id && document.getElementById(id); if (el && el.tagName === 'DETAILS') el.open = true; }
   document.querySelectorAll('.toc a').forEach(function(a){ a.addEventListener('click', function(){ openTarget(a.getAttribute('href').slice(1)); }); });
@@ -316,18 +369,31 @@ def rating_chart(rows, main_tc, L):
         label = f"{int(dd)}.{mm}" + (f".{yy[2:]}" if len(years) > 1 else "") if dd else S[i]["date"]
         ticks += (f'<line x1="{x(i):.1f}" x2="{x(i):.1f}" y1="{h - btm}" y2="{h - btm + 5}" class="axis"/>'
                   f'<text x="{x(i):.1f}" y="{h - btm + 19}" class="tick" text-anchor="middle">{label}</text>')
-    pts = "".join(
-        f'<g class="pt"><title>{L["game"]} {s["n"]} ({s["date"]}), {L[s["color"]]}: {L[s["outcome"]]} {L["vs"]} '
-        f'{H.escape(s["opp"])} ({s["opp_elo"]}). {L["rating"]}: {s["my_elo"]}.</title>'
-        f'<circle cx="{x(i):.1f}" cy="{y(s["my_elo"]):.1f}" r="7" fill="transparent"/>'
-        f'<circle cx="{x(i):.1f}" cy="{y(s["my_elo"]):.1f}" r="2.6" class="dot {s["outcome"]}"/></g>' for i, s in enumerate(S))
+    pts = "".join(f'<circle cx="{x(i):.1f}" cy="{y(s["my_elo"]):.1f}" r="2.6" class="dot {s["outcome"]}"/>'
+                  for i, s in enumerate(S))
     pk = max(range(n), key=lambda i: S[i]["my_elo"])
     ann = (f'<circle cx="{x(pk):.1f}" cy="{y(S[pk]["my_elo"]):.1f}" r="5" class="peak"/>'
            f'<text x="{x(pk):.1f}" y="{y(S[pk]["my_elo"]) - 12:.1f}" class="ann" text-anchor="middle">{L["peak"]}: {S[pk]["my_elo"]}</text>'
            f'<text x="{x(n - 1) - 4:.1f}" y="{y(S[-1]["my_elo"]) - 12:.1f}" class="ann" text-anchor="end">{L["now"]}: {S[-1]["my_elo"]}</text>')
-    return (f'<svg viewBox="0 0 {w} {h}" class="chart" role="img" aria-label="{L["chart"]}">{grid}'
+    # data for the hover card (one entry per point)
+    data = []
+    for i, s in enumerate(S):
+        yy, mm, dd = (s["date"].split(".") + ["", "", ""])[:3]
+        data.append({"x": round(x(i), 1), "y": round(y(s["my_elo"]), 1), "n": s["n"],
+                     "date": f"{int(dd)}.{mm}.{yy}" if dd else s["date"],
+                     "time": (s.get("end_time") or "")[:5], "color": s["color"], "res": s["outcome"],
+                     "how": s.get("how", ""), "opp": s["opp"], "oe": s["opp_elo"], "me": s["my_elo"],
+                     "d": s["my_elo"] - S[i - 1]["my_elo"] if i else 0, "op": s.get("opening", ""),
+                     "plies": s.get("plies", 0), "link": s.get("link", "")})
+    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    return (f'<div class="chart-wrap"><svg viewBox="0 0 {w} {h}" class="chart" role="img" aria-label="{L["chart"]}">{grid}'
             f'<line x1="{l}" x2="{w - r_}" y1="{h - btm}" y2="{h - btm}" class="axis"/>{ticks}<path d="{path}" class="line"/>{pts}{ann}'
-            f'<text x="{(w + l) / 2}" y="{h - 8}" class="tick" text-anchor="middle">{L["axis"]} ({main_tc})</text></svg>')
+            f'<line class="guide" x1="0" x2="0" y1="{t}" y2="{h - btm}" visibility="hidden"/>'
+            f'<circle class="hot" r="5.5" cx="0" cy="0" visibility="hidden"/>'
+            f'<rect class="hit" x="{l}" y="{t - 20}" width="{w - l - r_}" height="{h - btm - t + 20}" fill="transparent"/>'
+            f'<text x="{(w + l) / 2}" y="{h - 8}" class="tick" text-anchor="middle">{L["axis"]} ({main_tc})</text></svg>'
+            f'<div class="chart-tip" role="tooltip" hidden></div>'
+            f'<script type="application/json" class="chart-data">{payload}</script></div>')
 
 
 def main():
