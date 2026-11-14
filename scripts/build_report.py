@@ -302,6 +302,20 @@ def rating_chart(rows, main_tc, L):
                    f'<text x="{l - 10}" y="{y(v) + 4:.1f}" class="tick" text-anchor="end">{v}</text>'
                    for v in range(int(lo), int(hi) + 1, int(step)))
     path = "M" + " L".join(f"{x(i):.1f},{y(s['my_elo']):.1f}" for i, s in enumerate(S))
+    # date labels on the x axis: about 8, at the first game of a new day near evenly spaced points
+    years = {s["date"][:4] for s in S}
+    ticks, last_i = "", -10 ** 9
+    for k in range(8):
+        i = round(k * (n - 1) / 7)
+        while i > 0 and S[i - 1]["date"] == S[i]["date"]:  # first game of that day
+            i -= 1
+        if i - last_i < n / 14:  # too close to the previous label
+            continue
+        last_i = i
+        yy, mm, dd = (S[i]["date"].split(".") + ["", "", ""])[:3]
+        label = f"{int(dd)}.{mm}" + (f".{yy[2:]}" if len(years) > 1 else "") if dd else S[i]["date"]
+        ticks += (f'<line x1="{x(i):.1f}" x2="{x(i):.1f}" y1="{h - btm}" y2="{h - btm + 5}" class="axis"/>'
+                  f'<text x="{x(i):.1f}" y="{h - btm + 19}" class="tick" text-anchor="middle">{label}</text>')
     pts = "".join(
         f'<g class="pt"><title>{L["game"]} {s["n"]} ({s["date"]}), {L[s["color"]]}: {L[s["outcome"]]} {L["vs"]} '
         f'{H.escape(s["opp"])} ({s["opp_elo"]}). {L["rating"]}: {s["my_elo"]}.</title>'
@@ -312,7 +326,7 @@ def rating_chart(rows, main_tc, L):
            f'<text x="{x(pk):.1f}" y="{y(S[pk]["my_elo"]) - 12:.1f}" class="ann" text-anchor="middle">{L["peak"]}: {S[pk]["my_elo"]}</text>'
            f'<text x="{x(n - 1) - 4:.1f}" y="{y(S[-1]["my_elo"]) - 12:.1f}" class="ann" text-anchor="end">{L["now"]}: {S[-1]["my_elo"]}</text>')
     return (f'<svg viewBox="0 0 {w} {h}" class="chart" role="img" aria-label="{L["chart"]}">{grid}'
-            f'<line x1="{l}" x2="{w - r_}" y1="{h - btm}" y2="{h - btm}" class="axis"/><path d="{path}" class="line"/>{pts}{ann}'
+            f'<line x1="{l}" x2="{w - r_}" y1="{h - btm}" y2="{h - btm}" class="axis"/>{ticks}<path d="{path}" class="line"/>{pts}{ann}'
             f'<text x="{(w + l) / 2}" y="{h - 8}" class="tick" text-anchor="middle">{L["axis"]} ({main_tc})</text></svg>')
 
 
