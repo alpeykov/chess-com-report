@@ -40,19 +40,19 @@ LABELS = {
     "en": dict(start="Start", move="Move", play="Play", pause="Pause", first="To start", prev="Back", next="Forward",
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
-               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", white_chances="White's winning chances", next_section="Next section", collapse="Collapse all", expand="Expand all",
+               chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", white_chances="Your winning chances (White)", black_chances="Your winning chances (Black)", next_section="Next section", collapse="Collapse all", expand="Expand all",
                tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
-               game_analysis="Dernière partie", top="Haut de page", white_chances="Chances des Blancs", next_section="Section suivante", collapse="Tout replier", expand="Tout déplier",
+               game_analysis="Dernière partie", top="Haut de page", white_chances="Vos chances de gain (Blancs)", black_chances="Vos chances de gain (Noirs)", next_section="Section suivante", collapse="Tout replier", expand="Tout déplier",
                tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
-               game_analysis="Последна партия", top="Към началото", white_chances="Шанс за белите", next_section="Следващ раздел", collapse="Свий всички", expand="Разгъни всички",
+               game_analysis="Последна партия", top="Към началото", white_chances="Вашият шанс за победа (белите)", black_chances="Вашият шанс за победа (черните)", next_section="Следващ раздел", collapse="Свий всички", expand="Разгъни всички",
                tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
@@ -253,7 +253,7 @@ JS = """
 (function(){
   const LBL = JSON.parse(document.getElementById('labels').textContent);
   const FLAGS = JSON.parse(document.getElementById('flags').textContent);
-  function evalGraph(root, ev, ply, L, jump){
+  function evalGraph(root, ev, ply, L, jump, o){
     let g = root.querySelector('.v-eval');
     if (!g) { g = document.createElement('div'); g.className = 'v-eval'; root.querySelector('.v-board').after(g);
       g.addEventListener('click', function(e){ const r = g.getBoundingClientRect(); jump(Math.round((e.clientX - r.left) / r.width * (ev.length - 1))); }); }
@@ -263,7 +263,7 @@ JS = """
     g.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><rect width="' + W + '" height="' + H + '" fill="#1b2433"/>'
       + '<path d="' + d + '" fill="#e8edf2" opacity=".85"/><line x1="0" x2="' + W + '" y1="' + H / 2 + '" y2="' + H / 2 + '" stroke="#6d9dff" stroke-dasharray="3 3" opacity=".6"/>'
       + '<line x1="' + x(cur) + '" x2="' + x(cur) + '" y1="0" y2="' + H + '" stroke="#f2b01e" stroke-width="2"/></svg>'
-      + '<span>' + L.white_chances + ': <b>' + Math.round(w) + '%</b></span>';
+      + '<span>' + (o === 'b' ? L.black_chances : L.white_chances) + ': <b>' + Math.round(w) + '%</b></span>';
   }
   const LANGS = Object.keys(LBL);
   const data = JSON.parse(document.getElementById('viewer-data').textContent);
@@ -276,7 +276,7 @@ JS = """
     function show(n){
       i = Math.max(0, Math.min(fr.length - 1, n));
       board.innerHTML = boardSVG(fr[i], v.o);
-      if (v.ev) evalGraph(root, v.ev, fr[i].ply, L, function(p){ stop(); const k = fr.findIndex(function(f){ return f.ply === p; }); if (k >= 0) show(k); }); moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
+      if (v.ev) evalGraph(root, v.ev, fr[i].ply, L, function(p){ stop(); const k = fr.findIndex(function(f){ return f.ply === p; }); if (k >= 0) show(k); }, v.o); moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
       cap.innerHTML = fr[i].caption[lang];
       const ply = fr[i].ply;
       count.textContent = (ply === 0 ? L.start : L.move + ' ' + Math.ceil(ply / 2) + (ply % 2 ? '.' : '...')) + ' · ' + (i + 1) + ' / ' + fr.length;
@@ -629,7 +629,8 @@ def main():
                     v.get("from_ply", 0), v.get("to_ply"), langs, words)
         vdata[vid] = {"frames": fr, "start": v.get("start_index", 0), "o": "b" if orient == chess.BLACK else "w"}
         if v.get("evals"):  # White's win % after each ply (sf_scan.py), drawn as a graph under the board
-            vdata[vid]["ev"] = v["evals"]
+            # shown from the side of the board's orientation (the player's colour): Black sees 100 - White's %
+            vdata[vid]["ev"] = [round(100 - w, 1) for w in v["evals"]] if orient == chess.BLACK else v["evals"]
 
     def block(lang):
         L, T = LL[lang], (lambda v: tr(v, lang, first))
