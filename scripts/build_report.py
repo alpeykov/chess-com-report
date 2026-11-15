@@ -146,6 +146,44 @@ def words_for(spec, lang=None):
     return apply
 
 
+# A letter that names a file ("the e-file", "линията e", "la colonne e") is shown bold, underlined and in quotes,
+# so it does not read as a word or a square.
+FILE_RE = {
+    "bg": re.compile(r"(?<![\w])((?:[Лл]иния(?:та)?|[Лл]инии(?:те)?|[Пп]ешка(?:та)?\s+на)\s+)([a-h])(?![\w])"),
+    "en": re.compile(r"(?<![\w\"])([a-h])(-(?:file|pawn)s?)\b"),
+    "fr": re.compile(r"(?<![\w])([Cc]olonnes?\s+)([a-h])(?![\w])"),
+}
+
+
+def mark_file(letter):
+    return f'<b class="file"><u>"{letter}"</u></b>'
+
+
+def mark_files(s, lang):
+    """Mark file letters in visible text; tags, <code>, <script>, <style> and the grey SAN spans are left alone."""
+    rx = FILE_RE.get(lang)
+    if not rx:
+        return s
+    out, stack = [], []  # True for an open element whose text is left alone
+    for part in TAG_RE.split(s):
+        if part.startswith("<"):
+            low = part.lower()
+            if low.startswith(("<code", "<script", "<style")):
+                stack.append(True)
+            elif low.startswith("<span"):
+                stack.append('class="san"' in low)
+            elif low.startswith(("</code", "</script", "</style", "</span")) and stack:
+                stack.pop()
+            out.append(part)
+        elif any(stack):
+            out.append(part)
+        elif lang == "en":
+            out.append(rx.sub(lambda m: mark_file(m.group(1)) + m.group(2), part))
+        else:
+            out.append(rx.sub(lambda m: m.group(1) + mark_file(m.group(2)), part))
+    return "".join(out)
+
+
 FLAGS = {
     "bg": '<svg viewBox="0 0 30 18"><rect width="30" height="6" fill="#fff"/><rect y="6" width="30" height="6" fill="#00966E"/><rect y="12" width="30" height="6" fill="#D62612"/></svg>',
     "en": '<svg viewBox="0 0 60 36"><rect width="60" height="36" fill="#012169"/><path d="M0 0L60 36M60 0L0 36" stroke="#fff" stroke-width="7"/><path d="M0 0L60 36M60 0L0 36" stroke="#C8102E" stroke-width="3"/><path d="M30 0V36M0 18H60" stroke="#fff" stroke-width="11"/><path d="M30 0V36M0 18H60" stroke="#C8102E" stroke-width="6"/></svg>',
@@ -590,7 +628,7 @@ def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None,
         caps, lines = {}, {}
         for lang in langs:
             w, c = words.get(lang), tr(caption, lang, langs[0])
-            caps[lang] = w(c) if w else c
+            caps[lang] = mark_files(w(c) if w else c, lang)
             lines[lang] = w(line, True) if w else line
         out.append(dict(pos, moves=lines, caption=caps, ply=k))
     return out
@@ -776,6 +814,7 @@ def main():
         content = fill(head + "".join(body))
         if words.get(lang):
             content = words[lang](content)
+        content = mark_files(content, lang)
         leftover = re.search(r"\{\{[^}]*\}\}", content)
         assert not leftover, f"unresolved placeholder: {leftover.group(0)}"
         return f'<main data-lang="{lang}" lang="{lang}">{content}</main>'
