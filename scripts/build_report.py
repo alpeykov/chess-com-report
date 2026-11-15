@@ -213,7 +213,7 @@ details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 .viewer:focus-visible{box-shadow:0 0 0 2px var(--accent)}.v-title{font-weight:700;font-size:16px}
 .v-moves{font:600 13px/1.4 var(--mono);color:var(--accent-ink);min-height:1.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
 .v-moves span{direction:ltr;unicode-bidi:bidi-override}.v-board svg{display:block;width:100%;height:auto;max-width:460px;border-radius:7px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
-.v-eval{cursor:pointer;max-width:460px}.v-eval svg{display:block;width:100%;height:46px;border-radius:6px;border:1px solid var(--border)}.v-eval span{display:block;font-size:12px;color:var(--muted);margin-top:3px}.v-eval b{color:var(--ink)}
+.v-eval{cursor:ew-resize;max-width:460px;touch-action:pan-y;user-select:none;-webkit-user-select:none}.v-eval svg{display:block;width:100%;height:46px;border-radius:6px;border:1px solid var(--border)}.v-eval span{display:block;font-size:12px;color:var(--muted);margin-top:3px}.v-eval b{color:var(--ink)}
 .v-cap{margin:0;min-height:3.1em;color:var(--ink-2);font-size:15px}.v-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .v-controls button{font:600 15px var(--font);min-width:40px;height:38px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);cursor:pointer}
 .v-controls button:hover:not(:disabled){background:var(--hover)}.v-controls button:disabled{opacity:.35;cursor:default}
@@ -256,7 +256,14 @@ JS = """
   function evalGraph(root, ev, ply, L, jump, o){
     let g = root.querySelector('.v-eval');
     if (!g) { g = document.createElement('div'); g.className = 'v-eval'; root.querySelector('.v-board').after(g);
-      g.addEventListener('click', function(e){ const r = g.getBoundingClientRect(); jump(Math.round((e.clientX - r.left) / r.width * (ev.length - 1))); }); }
+      // click, or press and drag along the graph, to move through the game
+      let drag = false, last = -1;
+      const at = function(e){ const r = g.getBoundingClientRect(), p = Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * (ev.length - 1));
+        if (p !== last) { last = p; g._jump(p); } };
+      g.addEventListener('pointerdown', function(e){ drag = true; last = -1; try { g.setPointerCapture(e.pointerId); } catch (_) {} at(e); e.preventDefault(); });
+      g.addEventListener('pointermove', function(e){ if (drag) at(e); });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function(t){ g.addEventListener(t, function(){ drag = false; }); }); }
+    g._jump = jump;
     const W = 360, H = 64, n = ev.length - 1, x = function(i){ return (i / Math.max(1, n)) * W; }, y = function(w){ return H - w / 100 * H; };
     let d = 'M0 ' + H; ev.forEach(function(w, i){ d += ' L' + x(i).toFixed(1) + ' ' + y(w).toFixed(1); }); d += ' L' + W + ' ' + H + ' Z';
     const cur = Math.min(ply, n), w = ev[cur];
