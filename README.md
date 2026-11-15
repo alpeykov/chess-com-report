@@ -40,4 +40,5 @@ See [SKILL.md](SKILL.md) for the workflow and [references/spec_format.md](refere
 | `engine.py` | Small material search (alpha-beta and quiescence), no Stockfish needed |
 | `sf_engine.py`, `sf_scan.py` | Stockfish analysis: accuracy, move classes, phases, clock, motifs, opening exit, puzzles |
 | `update_stockfish.py` | Check for a newer Stockfish release and install it |
+| `update_skill.py` | Pull a newer version of this skill from its git repository |
 | `board_svg.py` | Board, pieces and background scenes |
