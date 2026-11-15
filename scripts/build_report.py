@@ -41,19 +41,19 @@ LABELS = {
                last="To end", show="Show on the board", win="win", loss="loss", draw="draw", white="White", black="Black",
                game="Game", rating="Rating", now="Now", peak="Peak", vs="vs", axis="Games in order",
                chart="Rating, game by game", contents="Contents", game_analysis="Latest game", top="Back to top", white_chances="Your winning chances (White)", black_chances="Your winning chances (Black)", next_section="Next section", collapse="Collapse all", expand="Expand all",
-               tip_open="Click the point to open the game", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
+               tip_open="Double-click the point to open the game", zoom_in="Zoom in", zoom_out="Zoom out", zoom_reset="Whole history", zoom_hint="Zoom with + and &minus;, or click the chart and use the mouse wheel; drag to move when zoomed in", opening="Opening", moves="Moves", how_checkmate="checkmate", how_resignation="resignation", how_time="on time", how_abandoned="abandoned", how_draw="", how_other=""),
     "fr": dict(start="Début", move="Coup", play="Lecture", pause="Pause", first="Au début", prev="Retour", next="Suivant",
                last="À la fin", show="Afficher sur l'échiquier", win="victoire", loss="défaite", draw="nulle",
                white="Blancs", black="Noirs", game="Partie", rating="Classement", now="Actuel", peak="Max", vs="contre",
                axis="Parties dans l'ordre", chart="Classement, partie par partie", contents="Sommaire",
                game_analysis="Dernière partie", top="Haut de page", white_chances="Vos chances de gain (Blancs)", black_chances="Vos chances de gain (Noirs)", next_section="Section suivante", collapse="Tout replier", expand="Tout déplier",
-               tip_open="Cliquez sur le point pour ouvrir la partie", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
+               tip_open="Double-cliquez sur le point pour ouvrir la partie", zoom_in="Zoomer", zoom_out="Dézoomer", zoom_reset="Tout l'historique", zoom_hint="Zoomez avec + et &minus;, ou cliquez sur le graphique et utilisez la molette ; faites glisser pour vous déplacer", opening="Ouverture", moves="Coups", how_checkmate="mat", how_resignation="abandon", how_time="au temps", how_abandoned="partie quittée", how_draw="", how_other=""),
     "bg": dict(start="Начало", move="Ход", play="Пусни", pause="Пауза", first="Към началото", prev="Назад", next="Напред",
                last="Към края", show="Покажи хода на дъската", win="победа", loss="загуба", draw="реми", white="белите",
                black="черните", game="Партия", rating="Рейтинг", now="Сега", peak="Връх", vs="срещу",
                axis="Партии по ред", chart="Рейтинг, партия по партия", contents="Съдържание",
                game_analysis="Последна партия", top="Към началото", white_chances="Вашият шанс за победа (белите)", black_chances="Вашият шанс за победа (черните)", next_section="Следващ раздел", collapse="Свий всички", expand="Разгъни всички",
-               tip_open="Кликнете точката, за да отворите партията", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
+               tip_open="Двоен клик върху точката отваря партията", zoom_in="Увеличи", zoom_out="Намали", zoom_reset="Цялата история", zoom_hint="Увеличавайте с + и &minus; или кликнете графиката и въртете колелцето на мишката; при увеличение влачете, за да се местите", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
 PIECE_WORDS = {
@@ -219,7 +219,7 @@ details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 .v-controls button:hover:not(:disabled){background:var(--hover)}.v-controls button:disabled{opacity:.35;cursor:default}
 .v-controls .v-play{margin-left:auto;background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .v-count{min-width:64px;white-space:nowrap;text-align:center;font:700 15px var(--font);font-variant-numeric:tabular-nums}
-.chart-wrap{position:relative}.chart .guide{stroke:var(--muted);stroke-dasharray:3 3}.chart .hot{fill:none;stroke:var(--ink);stroke-width:2}.chart .hit{cursor:pointer}.chart:focus{outline:none}
+.chart-wrap{position:relative}.chart-wrap.armed .chart{outline:1px solid var(--border-strong);outline-offset:2px;border-radius:6px}.chart-zoom{position:absolute;top:2px;right:2px;display:flex;gap:4px;z-index:3}.chart-zoom button{width:30px;height:28px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font:700 16px var(--font);cursor:pointer;line-height:1;padding:0}.chart-zoom button:hover{background:var(--border)}.chart-hint{font-size:12px;color:var(--muted);margin:2px 0 0}.chart.zoomed .hit{cursor:grab}.chart.panning .hit{cursor:grabbing}.chart .guide{stroke:var(--muted);stroke-dasharray:3 3}.chart .hot{fill:none;stroke:var(--ink);stroke-width:2}.chart .hit{cursor:pointer}.chart:focus{outline:none}
 .chart-tip{position:absolute;z-index:5;pointer-events:none;min-width:210px;max-width:290px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink-2);box-shadow:0 6px 20px rgba(0,0,0,.5)}
 .chart-tip .tt-h{display:flex;justify-content:space-between;gap:10px;color:var(--ink);font-weight:700;font-size:14px;margin-bottom:4px}.chart-tip .tt-r{display:flex;justify-content:space-between;gap:12px}.chart-tip .tt-r b{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}.chart-tip .up{color:#7ddcaa}.chart-tip .down{color:#f2a39b}.chart-tip .tt-f{color:var(--muted);font-size:12px;margin-top:6px}
 .c1{--c:#6d9dff}.c2{--c:#34d3c1}.c3{--c:#b18cff}.c4{--c:#ff9a55}.c5{--c:#ff6fae}.c6{--c:#f0b44c}.c7{--c:#5fd68b}.c8{--c:#8b85ff}
@@ -359,11 +359,78 @@ JS = """
     hit.addEventListener('pointermove', function(e){ show(nearest(e)); });
     hit.addEventListener('pointerdown', function(e){ lastType = e.pointerType; show(nearest(e)); });
     hit.addEventListener('pointerleave', function(e){ if (e.pointerType === 'mouse') hide(); });
-    hit.addEventListener('click', function(e){ const d = data[nearest(e)]; if (d.link && lastType === 'mouse') window.open(d.link, '_blank', 'noopener'); });
+    hit.addEventListener('dblclick', function(e){ const d = data[nearest(e)]; if (d.link && lastType === 'mouse') window.open(d.link, '_blank', 'noopener'); });
+    // zoom: + / - / reset buttons; after a click on the chart also the mouse wheel; drag to move when zoomed in
+    const NS = 'http://www.w3.org/2000/svg', VB = svg.viewBox.baseVal, geo = svg.dataset.geo.split(',').map(Number);
+    const GL = geo[0], GR = VB.width - geo[1], GT = geo[2], GB = VB.height - geo[3], N = data.length;
+    const multiYear = new Set(data.map(function(d){ return d.date.split('.')[2]; })).size > 1;
+    const line = svg.querySelector('.line'), dots = svg.querySelectorAll('.dots circle'), anns = svg.querySelectorAll('[data-i]'),
+          ygrid = svg.querySelector('.ygrid'), xticks = svg.querySelector('.xticks');
+    let za = 0, zb = N - 1, armed = false;
+    function el(tag, attrs, text){ const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; }
+    function layout(a, b){
+      const span = Math.max(8, b - a);
+      if (span >= N - 1) { a = 0; b = N - 1; } else { b = a + span; if (a < 0) { b -= a; a = 0; } if (b > N - 1) { a -= b - (N - 1); b = N - 1; } }
+      za = a; zb = b; hide();
+      const X = function(i){ return GL + (i - a) * (GR - GL) / Math.max(1, b - a); };
+      let mn = 1e9, mx = -1e9;
+      for (let i = Math.max(0, Math.floor(a)); i <= Math.min(N - 1, Math.ceil(b)); i++) { mn = Math.min(mn, data[i].me); mx = Math.max(mx, data[i].me); }
+      const st = [10, 20, 25, 50, 100, 200, 250, 500].find(function(s){ return (mx - mn + 60) / s <= 5; }) || 500;
+      const lo = Math.max(0, Math.floor((mn - Math.max(15, st / 2)) / st) * st), hi = Math.ceil((mx + Math.max(40, st)) / st) * st;
+      const Y = function(v){ return GT + (hi - v) * (GB - GT) / (hi - lo); };
+      ygrid.replaceChildren();
+      for (let v = lo; v <= hi; v += st) {
+        ygrid.appendChild(el('line', {x1: GL, x2: GR, y1: Y(v).toFixed(1), y2: Y(v).toFixed(1), 'class': 'grid'}));
+        ygrid.appendChild(el('text', {x: GL - 10, y: (Y(v) + 4).toFixed(1), 'class': 'tick', 'text-anchor': 'end'}, v));
+      }
+      let d = '';
+      data.forEach(function(p, i){ p.x = +X(i).toFixed(1); p.y = +Y(p.me).toFixed(1); d += (i ? ' L' : 'M') + p.x + ',' + p.y; });
+      line.setAttribute('d', d);
+      dots.forEach(function(c, i){ c.setAttribute('cx', data[i].x); c.setAttribute('cy', data[i].y); });
+      anns.forEach(function(e){ const p = data[+e.dataset.i];
+        if (e.tagName === 'circle') { e.setAttribute('cx', p.x); e.setAttribute('cy', p.y); }
+        else { e.setAttribute('x', e.getAttribute('text-anchor') === 'end' ? p.x - 4 : p.x); e.setAttribute('y', p.y - 12); } });
+      xticks.replaceChildren();
+      let last = -1e9;
+      const i0 = Math.max(0, Math.ceil(a)), i1 = Math.min(N - 1, Math.floor(b));
+      for (let k = 0; k < 8; k++) {
+        let i = Math.round(i0 + k * (i1 - i0) / 7);
+        while (i > i0 && data[i - 1].date === data[i].date) i--;
+        if (i === last || (last > -1e9 && i - last < (i1 - i0) / 14)) continue;
+        last = i;
+        const q = data[i].date.split('.'), lab = q.length === 3 ? q[0] + '.' + q[1] + (multiYear ? '.' + q[2].slice(2) : '') : data[i].date;
+        xticks.appendChild(el('line', {x1: data[i].x, x2: data[i].x, y1: GB, y2: GB + 5, 'class': 'axis'}));
+        xticks.appendChild(el('text', {x: data[i].x, y: GB + 19, 'class': 'tick', 'text-anchor': 'middle'}, lab));
+      }
+      svg.classList.toggle('zoomed', b - a < N - 1);
+    }
+    function zoom(f, c){  // f < 1 zooms in, keeping game index c at the same place
+      const span = zb - za; if (c == null) c = (za + zb) / 2;
+      const ns = Math.min(N - 1, Math.max(8, span * f)), t = (c - za) / Math.max(1e-9, span);
+      layout(c - t * ns, c - t * ns + ns);
+    }
+    function idxAt(evt){ const r = svg.getBoundingClientRect(), xv = (evt.clientX - r.left) / r.width * VB.width;
+      return za + (xv - GL) / (GR - GL) * (zb - za); }
+    wrap.querySelectorAll('.chart-zoom button').forEach(function(b){ b.addEventListener('click', function(){
+      if (b.dataset.z === 'in') zoom(1 / 1.6); else if (b.dataset.z === 'out') zoom(1.6); else layout(0, N - 1); }); });
+    function arm(on){ armed = on; wrap.classList.toggle('armed', on); }
+    svg.addEventListener('pointerdown', function(){ arm(true); });
+    document.addEventListener('pointerdown', function(e){ if (!wrap.contains(e.target)) arm(false); });
+    svg.addEventListener('wheel', function(e){ if (!armed) return; e.preventDefault(); zoom(e.deltaY < 0 ? 1 / 1.25 : 1.25, idxAt(e)); }, {passive: false});
+    let pan = null;
+    hit.addEventListener('pointerdown', function(e){ if (zb - za < N - 1) pan = {x: e.clientX, a: za, b: zb, moved: false, id: e.pointerId}; });
+    hit.addEventListener('pointermove', function(e){ if (!pan) return; const r = svg.getBoundingClientRect(), dx = e.clientX - pan.x;
+      if (!pan.moved && Math.abs(dx) < 4) return;
+      if (!pan.moved) { pan.moved = true; try { hit.setPointerCapture(pan.id); } catch (_) {} svg.classList.add('panning'); }
+      const di = -dx / r.width * VB.width / (GR - GL) * (pan.b - pan.a); layout(pan.a + di, pan.b + di); });
+    ['pointerup', 'pointercancel'].forEach(function(t){ hit.addEventListener(t, function(){ pan = null; svg.classList.remove('panning'); }); });
+    layout(0, N - 1);
     svg.setAttribute('tabindex', '0');
     svg.addEventListener('keydown', function(e){
       const k = {ArrowRight: 1, ArrowLeft: -1}[e.key];
-      if (!k) { if (e.key === 'Escape') hide(); return; }
+      if (e.key === '+' || e.key === '=') { zoom(1 / 1.6); e.preventDefault(); return; }
+      if (e.key === '-') { zoom(1.6); e.preventDefault(); return; }
+      if (!k) { if (e.key === 'Escape') { hide(); arm(false); } return; }
       show(Math.max(0, Math.min(data.length - 1, cur < 0 ? data.length - 1 : cur + k))); e.preventDefault();
     });
     svg.addEventListener('blur', hide);
@@ -541,6 +608,9 @@ def viewer_html(vid, title, L, lang):
             f'<button type="button" data-act="play" class="v-play">&#9654;&#xFE0E; {L["play"]}</button></div></figure>')
 
 
+CHART_N = 0  # unique clipPath id for each copy of the chart (one per language)
+
+
 def rating_chart(rows, main_tc, L):
     S = [r for r in rows if r["time_class"] == main_tc and r["my_elo"]]
     if len(S) < 2:
@@ -588,13 +658,24 @@ def rating_chart(rows, main_tc, L):
                      "d": s["my_elo"] - S[i - 1]["my_elo"] if i else 0, "op": s.get("opening", ""),
                      "plies": s.get("plies", 0), "link": s.get("link", "")})
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    return (f'<div class="chart-wrap"><svg viewBox="0 0 {w} {h}" class="chart" role="img" aria-label="{L["chart"]}">{grid}'
-            f'<line x1="{l}" x2="{w - r_}" y1="{h - btm}" y2="{h - btm}" class="axis"/>{ticks}<path d="{path}" class="line"/>{pts}{ann}'
+    global CHART_N
+    CHART_N += 1
+    cid = f"rc-clip-{CHART_N}"
+    ann = (ann.replace('class="peak"', f'class="peak" data-i="{pk}"')
+              .replace('class="ann" text-anchor="middle"', f'class="ann" data-i="{pk}" text-anchor="middle"', 1)
+              .replace('class="ann" text-anchor="end"', f'class="ann" data-i="{n - 1}" text-anchor="end"', 1))
+    zoom = (f'<div class="chart-zoom"><button type="button" data-z="in" title="{L["zoom_in"]}" aria-label="{L["zoom_in"]}">+</button>'
+            f'<button type="button" data-z="out" title="{L["zoom_out"]}" aria-label="{L["zoom_out"]}">&minus;</button>'
+            f'<button type="button" data-z="reset" title="{L["zoom_reset"]}" aria-label="{L["zoom_reset"]}">&#8634;</button></div>')
+    return (f'<div class="chart-wrap">{zoom}<svg viewBox="0 0 {w} {h}" class="chart" role="img" aria-label="{L["chart"]}" data-geo="{l},{r_},{t},{btm}">'
+            f'<defs><clipPath id="{cid}"><rect x="{l - 6}" y="0" width="{w - l - r_ + 12}" height="{h - btm + 1}"/></clipPath></defs>'
+            f'<g class="ygrid">{grid}</g><line x1="{l}" x2="{w - r_}" y1="{h - btm}" y2="{h - btm}" class="axis"/><g class="xticks">{ticks}</g>'
+            f'<g clip-path="url(#{cid})"><path d="{path}" class="line"/><g class="dots">{pts}</g>{ann}</g>'
             f'<line class="guide" x1="0" x2="0" y1="{t}" y2="{h - btm}" visibility="hidden"/>'
             f'<circle class="hot" r="5.5" cx="0" cy="0" visibility="hidden"/>'
             f'<rect class="hit" x="{l}" y="{t - 20}" width="{w - l - r_}" height="{h - btm - t + 20}" fill="transparent"/>'
             f'<text x="{(w + l) / 2}" y="{h - 8}" class="tick" text-anchor="middle">{L["axis"]} ({main_tc})</text></svg>'
-            f'<div class="chart-tip" role="tooltip" hidden></div>'
+            f'<div class="chart-tip" role="tooltip" hidden></div><p class="chart-hint">{L["zoom_hint"]}</p>'
             f'<script type="application/json" class="chart-data">{payload}</script></div>')
 
 
