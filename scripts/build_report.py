@@ -112,7 +112,8 @@ def words_for(spec, lang=None):
             pj = next((j for j in range(i - 1, -1, -1) if toks[j]), None)
             nj = next((j for j in range(i + 1, len(parts)) if toks[j]), None)
             prev = pj is not None and movish[pj] and not stop[pj]
-            nxt = nj is not None and movish[nj] and not m["punct"]
+            # a move in brackets after a square is an example, not a continuation: "guard f7 (13...Rf8)"
+            nxt = nj is not None and movish[nj] and not m["punct"] and not toks[nj]["pre"].startswith("(")
             nm = name(m["core"], all_moves or bool(m["num"]) or prev or nxt)
             if nm is None:
                 out.append(x)
