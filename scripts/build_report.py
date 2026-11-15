@@ -146,7 +146,7 @@ def words_for(spec, lang=None):
     return apply
 
 
-# A letter that names a file ("the e-file", "линията e", "la colonne e") is shown bold, underlined and in quotes,
+# A letter that names a file ("the e-file", "линията e", "la colonne e") is shown bold and italic,
 # so it does not read as a word or a square.
 FILE_RE = {
     "bg": re.compile(r"(?<![\w])((?:[Лл]иния(?:та)?|[Лл]инии(?:те)?|[Пп]ешка(?:та)?\s+на)\s+)([a-h])(?![\w])"),
@@ -156,7 +156,7 @@ FILE_RE = {
 
 
 def mark_file(letter):
-    return f'<b class="file"><u>"{letter}"</u></b>'
+    return f'<b class="file"><i>{letter}</i></b>'
 
 
 def mark_files(s, lang):
