@@ -832,10 +832,15 @@ def main():
             f'title="{LANG_NAMES.get(lg, lg)}" aria-label="{LANG_NAMES.get(lg, lg)}">{FLAGS.get(lg, lg.upper())}</button>'
             for lg in langs) + "</div>")
     payload = json.dumps(vdata, ensure_ascii=False).replace("</", "<\\/")
-    # tab icon: a green pawn (chess.com green), drawn with shapes so it does not depend on a font
-    icon_svg = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><g fill='#81b64c' stroke='#45753c' stroke-width='2.5' "
-                "stroke-linejoin='round'><circle cx='32' cy='15' r='10'/><path d='M23 27h18l-3 5c4 6 6 13 7 20H19c1-7 3-14 7-20z'/>"
-                "<rect x='11' y='51' width='42' height='9' rx='3'/></g></svg>")
+    # tab icon: a chessboard under a magnifying glass (game analysis); drawn with shapes so it does not depend on a font
+    sq = "".join(f"<rect x='{5 + 11 * c}' y='{5 + 11 * r}' width='11' height='11'/>" for r in range(4) for c in range(4) if (r + c) % 2)
+    icon_svg = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><clipPath id='l'><circle cx='27' cy='27' r='20'/></clipPath>"
+                # a light outline behind the handle and the ring keeps them visible on a dark tab bar
+                "<g fill='none' stroke='#e8e8e8' stroke-linecap='round'><line x1='43' y1='43' x2='59' y2='59' stroke-width='11'/>"
+                "<circle cx='27' cy='27' r='21' stroke-width='8'/></g>"
+                "<line x1='43' y1='43' x2='59' y2='59' stroke='#2b2b2b' stroke-width='8' stroke-linecap='round'/>"
+                f"<g clip-path='url(#l)'><rect x='5' y='5' width='44' height='44' fill='#f0d9b5'/><g fill='#b58863'>{sq}</g></g>"
+                "<circle cx='27' cy='27' r='21' fill='none' stroke='#2b2b2b' stroke-width='5'/></svg>")
     icon = "data:image/svg+xml," + urllib.parse.quote(icon_svg, safe=" ='/:")
     fonts = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" '
              'href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">')
