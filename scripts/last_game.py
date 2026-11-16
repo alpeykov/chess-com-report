@@ -132,7 +132,17 @@ def main():
             top = wp_for(multi[0]["score"], col)
             ok = [i["pv"][0].uci() for i in multi if i.get("pv") and wp_for(i["score"], col) >= top - 3]
             best = move_info(b, multi[0]["pv"][0])
-            sol = line_san(b, multi[0]["pv"], 5)
+            # the line shown: 5 plies, longer while it would stop in the middle of an exchange (a capture or a check
+            # still to be answered), so the material at its end is a real count (at most 11 plies)
+            pv0 = multi[0]["pv"]
+            n, eb = 0, b.copy()
+            while n < len(pv0) and n < 11:
+                cap = eb.is_capture(pv0[n])
+                eb.push(pv0[n])
+                n += 1
+                if eb.is_game_over() or (n >= 5 and not cap and not eb.is_check()):
+                    break
+            sol = line_san(b, pv0, n)
             # a draw by perpetual check: about even, and every one of your moves in the line gives check
             bb, checks = b.copy(), []
             for k, m_ in enumerate(multi[0]["pv"][:7]):
@@ -164,7 +174,7 @@ def main():
             tags_a = sorted(set((r.get("motifs_allowed") or [])))
             moments.append({
                 "ply": ply, "move_no": ply // 2 + 1, "played": played, "best": best, "ok": ok, "solution": sol,
-                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "perpetual": perpetual, "mat_before": material(b, col), "mat_end": material(bb, col), "alt": alt, "class": r.get("class"), "missed_mate": missed_mate,
+                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "perpetual": perpetual, "mat_before": material(b, col), "mat_end": material(eb, col), "alt": alt, "class": r.get("class"), "missed_mate": missed_mate,
                 "phase": r.get("phase"), "spent": r.get("spent"), "clock": r.get("clock"),
                 "threat": threat, "allowed": allowed, "motifs_missed": tags, "motifs_allowed": tags_a,
                 "seen_missed": {t: motif_count[("missed", t)] for t in tags}, "seen_allowed": {t: motif_count[("allowed", t)] for t in tags_a},
