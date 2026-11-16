@@ -175,8 +175,18 @@ def build(X, max_puzzles=6):
                        J(T(" Без жертва: ", " Without the sacrifice: ", " Sans sacrifice : "), mv(p, m["alt"]["san"]), " (", P(m["alt"]["wp"]), ").")
                        if m.get("perpetual") and m.get("alt") and m["alt"]["wp"] > m["after"] + 5 else ""))
             if "mat_before" in m and not m["best"]["mate"]:
-                expl = J(expl, T(" Фигури: сега сте ", " Material: now you are ", " Matériel : maintenant vous êtes "), mat_words(m["mat_before"]),
-                         T("; в края на показания вариант сте ", "; at the end of the line shown you are ", " ; à la fin de la suite montrée vous êtes "), mat_words(m["mat_end"]), ".")
+                mb, me = dict(m["mat_before"]), dict(m["mat_end"])
+                minor = lambda x: x.get("N", 0) + x.get("B", 0)
+                if minor(mb) == minor(me) and (mb.get("N"), mb.get("B")) != (me.get("N"), me.get("B")):  # only a knight / bishop swap
+                    for x in (mb, me):
+                        n = x.pop("N", 0) + x.pop("B", 0)
+                        if n:
+                            x["m"] = n
+                expl = J(expl, T(" Фигури: сега сте ", " Material: now you are ", " Matériel : maintenant vous êtes "), mat_words(mb),
+                         T(" и в края на показания вариант сте " if mb != me else "; в края на показания вариант е същото",
+                           " and at the end of the line shown you are " if mb != me else "; the same at the end of the line shown",
+                           " et à la fin de la suite montrée vous êtes " if mb != me else " ; de même à la fin de la suite montrée"),
+                         mat_words(me) if mb != me else "", ".")
             viewers[vid] = {"moves": " ".join(sans + m["solution"]), "orientation": "white" if white else "black", "from_ply": p,
                             "title": J(T("Ход ", "Move ", "Coup "), m["move_no"], " · ", side, T(" на ход", " to move", " au trait")),
                             "notes": {str(p): prompt, str(p + 1): expl},
