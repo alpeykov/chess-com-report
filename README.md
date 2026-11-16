@@ -35,6 +35,7 @@ See [SKILL.md](SKILL.md) for the workflow and [references/spec_format.md](refere
 | `build_report.py` | Assemble the HTML report from `report_spec.json` |
 | `engine.py` | Small material search (alpha-beta and quiescence), no Stockfish needed |
 | `sf_engine.py`, `sf_scan.py` | Stockfish analysis: accuracy, move classes, phases, clock, motifs, opening exit, puzzles |
-| `update_stockfish.py` | Check for a newer Stockfish release and install it |
+| `update_stockfish.py` | Install Stockfish in the skill folder and keep it on the latest release |
+| `explorer.py`, `explorer_section.py` | Compare the openings with the lichess opening explorer (players of a similar rating) and build its report section |
 | `update_skill.py` | Pull a newer version of this skill from its git repository |
 | `board_svg.py` | Board, pieces and background scenes |
