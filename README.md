@@ -43,3 +43,7 @@ See [SKILL.md](SKILL.md) for the workflow and [references/spec_format.md](refere
 | `game_index.py` | The games list (`games.html`, newest first) and one page per analysed game, linked to and from the main report |
 | `update_skill.py` | Pull a newer version of this skill from its git repository |
 | `board_svg.py` | Board, pieces and background scenes |
+
+## License
+
+MIT, see [LICENSE](LICENSE). Stockfish is not part of this repository: `update_stockfish.py` downloads the official release, which is under its own licence (GPLv3).
