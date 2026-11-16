@@ -88,6 +88,7 @@ def main():
     ap.add_argument("username")
     ap.add_argument("--out", required=True)
     ap.add_argument("--home", default="index.html", help="file name of the main report next to these pages")
+    ap.add_argument("--all", action="store_true", help="rebuild every game page, not only new or changed ones")
     a = ap.parse_args()
     me, out = a.username.strip().lower(), pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -98,8 +99,15 @@ def main():
     base = json.loads((games[0]["folder"] / "analysis_spec.json").read_text(encoding="utf-8"))
     langs = base.get("langs") or ["en"]
 
-    # one page per game
+    # one page per game; a page newer than its archive files and this script is kept (--all rebuilds every page)
+    built = 0
+    newest_code = max(pathlib.Path(__file__).stat().st_mtime, (ROOT / "scripts" / "build_report.py").stat().st_mtime)
     for gm in games:
+        page = out / f"game-{gm['id']}.html"
+        src = max((gm["folder"] / n).stat().st_mtime for n in ("analysis_spec.json", "game.pgn"))
+        if not a.all and page.exists() and page.stat().st_mtime > max(src, newest_code):
+            continue
+        built += 1
         raw = (gm["folder"] / "analysis_spec.json").read_text(encoding="utf-8")
         # in the archive every game is just "the game", not "the latest game"
         for old, new in (("Последна партия", "Партия"), ("Latest game", "Game"), ("Dernière partie", "Partie"), ("Анализ на партия: ", "Партия: ")):
@@ -159,7 +167,7 @@ def main():
                  "sections": [{"id": "games", "title": T("Анализирани партии", "Analysed games", "Parties analysées"),
                                "toc_title": T("Партии", "Games", "Parties"), "html": html}], "viewers": {}})
     build(spec, None, out / "games.html")
-    print(f"games.html and {len(games)} game pages written to {out}")
+    print(f"games.html written, {built} of {len(games)} game pages (re)built in {out}")
 
 
 if __name__ == "__main__":

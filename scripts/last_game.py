@@ -78,7 +78,8 @@ def material_drop(board, move, after_line, colour):
     b.push(move)
     n = 0
     for tok in (after_line or "").split():
-        if tok[0].isdigit():
+        tok = tok.lstrip("0123456789.")  # "24...Qxa5" or "25." -> "Qxa5" / ""
+        if not tok:
             continue
         try:
             m = b.parse_san(tok)
@@ -155,15 +156,30 @@ def main():
                 continue
             missed_mate = any(t in ("mate", "back_rank_mate") for t in r.get("motifs_missed") or [])
             b = board_at(ply)
-            drop = material_drop(b, moves[ply], r.get("after_line"), col)
+            after_line = r.get("after_line")
+            if not after_line:  # sf_scan keeps the reply line only for the moves it classified: work it out here
+                ab = b.copy()
+                ab.push(moves[ply])
+                if not ab.is_game_over():
+                    ai0 = eng.analyse(ab, chess.engine.Limit(depth=12))
+                    after_line = ab.variation_san(ai0.get("pv", [])[:6])
+            drop = material_drop(b, moves[ply], after_line, col)
             if r.get("class") not in ("mistake", "blunder") and not missed_mate and drop < 3:
                 continue
-            if r.get("class") not in ("mistake", "blunder") and drop >= 3:  # still winning, but a piece given away
+            by_material = r.get("class") not in ("mistake", "blunder") and not missed_mate
+            if by_material:  # still winning (or already lost), but a piece given away
                 r = dict(r, **{"class": "blunder" if drop >= 5 else "mistake"})
             played = move_info(b, moves[ply])
             multi = eng.analyse(b, lim, multipv=4)
             top = wp_for(multi[0]["score"], col)
             ok = [i["pv"][0].uci() for i in multi if i.get("pv") and wp_for(i["score"], col) >= top - 3]
+            if by_material and multi[0].get("pv"):
+                # only when the best move keeps that material: a piece that is lost whatever you play is not this move's fault
+                bb0 = b.copy()
+                bb0.push(multi[0]["pv"][0])
+                best_drop = material_drop(b, multi[0]["pv"][0], bb0.variation_san(multi[0]["pv"][1:7]), col)
+                if drop - best_drop < 3:
+                    continue
             best = move_info(b, multi[0]["pv"][0])
             # the line shown: 5 plies, longer while it would stop in the middle of an exchange (a capture or a check
             # still to be answered), so the material at its end is a real count (at most 11 plies)
@@ -189,8 +205,14 @@ def main():
             if best["mate"] and not played["mate"]:  # a mate in one: only mating moves solve the puzzle
                 ok = [i["pv"][0].uci() for i in multi if i.get("pv") and move_info(b, i["pv"][0])["mate"]]
                 missed_mate = True
-            elif moves[ply].uci() in ok:  # the played move was fine after all at this depth
-                continue
+            elif moves[ply].uci() in ok:
+                if drop < 3:  # the played move was fine after all at this depth
+                    continue
+                # in a lost (or won) position every move scores about the same; a move that gives away a piece is
+                # still a mistake: the other top moves solve the puzzle
+                ok = [u for u in ok if u != moves[ply].uci()]
+                if not ok:
+                    continue
             # the threat: what the opponent would play if it were their move now
             threat = None
             if not b.is_check():
