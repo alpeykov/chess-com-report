@@ -123,6 +123,16 @@ def main():
             ok = [i["pv"][0].uci() for i in multi if i.get("pv") and wp_for(i["score"], col) >= top - 3]
             best = move_info(b, multi[0]["pv"][0])
             sol = line_san(b, multi[0]["pv"], 5)
+            # a draw by perpetual check: about even, and every one of your moves in the line gives check
+            bb, checks = b.copy(), []
+            for k, m_ in enumerate(multi[0]["pv"][:7]):
+                bb.push(m_)
+                if k % 2 == 0:
+                    checks.append(bb.is_check())
+            perpetual = 45 <= top <= 55 and len(checks) >= 3 and all(checks)
+            # the next best move that is not the first one: a choice without the sacrifice
+            alt = next(({"san": b.san(i["pv"][0]), "wp": wp_for(i["score"], col)} for i in multi[1:]
+                        if i.get("pv") and i["pv"][0] != moves[ply]), None)
             if best["mate"] and not played["mate"]:  # a mate in one: only mating moves solve the puzzle
                 ok = [i["pv"][0].uci() for i in multi if i.get("pv") and move_info(b, i["pv"][0])["mate"]]
                 missed_mate = True
@@ -144,7 +154,7 @@ def main():
             tags_a = sorted(set((r.get("motifs_allowed") or [])))
             moments.append({
                 "ply": ply, "move_no": ply // 2 + 1, "played": played, "best": best, "ok": ok, "solution": sol,
-                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "class": r.get("class"), "missed_mate": missed_mate,
+                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "perpetual": perpetual, "alt": alt, "class": r.get("class"), "missed_mate": missed_mate,
                 "phase": r.get("phase"), "spent": r.get("spent"), "clock": r.get("clock"),
                 "threat": threat, "allowed": allowed, "motifs_missed": tags, "motifs_allowed": tags_a,
                 "seen_missed": {t: motif_count[("missed", t)] for t in tags}, "seen_allowed": {t: motif_count[("allowed", t)] for t in tags_a},

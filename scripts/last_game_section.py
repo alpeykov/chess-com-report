@@ -131,7 +131,17 @@ def build(X, max_puzzles=6):
                      T("мат.", "mate.", "mat.") if m["best"]["mate"] else
                      J(T("шанс ", "chances ", "chances "), P(m["best_wp"]), T(" вместо ", " instead of ", " au lieu de "), P(m["after"]),
                        T(" след ", " after ", " après "), mv(p, m["played"]["san"]), ". ",
-                       T("Продължение: ", "Line: ", "Suite : "), line(p, m["solution"]), "."))
+                       T("Продължение: ", "Line: ", "Suite : "), line(p, m["solution"]), ".",
+                       J(T(" Това е вечен шах: давате фигура, но царицата ви дава шах след шах и белият цар не може да се скрие, така че партията е реми.",
+                           " This is a perpetual check: you give up material, but your queen checks again and again and the king cannot hide, so the game is a draw.",
+                           " C'est un échec perpétuel : vous donnez du matériel, mais votre dame donne échec sur échec et le roi ne peut pas se cacher, donc la partie est nulle.")
+                         if white is False else
+                         T(" Това е вечен шах: давате фигура, но царицата ви дава шах след шах и черният цар не може да се скрие, така че партията е реми.",
+                           " This is a perpetual check: you give up material, but your queen checks again and again and the king cannot hide, so the game is a draw.",
+                           " C'est un échec perpétuel : vous donnez du matériel, mais votre dame donne échec sur échec et le roi ne peut pas se cacher, donc la partie est nulle."))
+                       if m.get("perpetual") else "",
+                       J(T(" Без жертва: ", " Without the sacrifice: ", " Sans sacrifice : "), mv(p, m["alt"]["san"]), " (", P(m["alt"]["wp"]), ").")
+                       if m.get("perpetual") and m.get("alt") and m["alt"]["wp"] > m["after"] + 5 else ""))
             viewers[vid] = {"moves": " ".join(sans + m["solution"]), "orientation": "white" if white else "black", "from_ply": p,
                             "title": J(T("Ход ", "Move ", "Coup "), m["move_no"], " · ", side, T(" на ход", " to move", " au trait")),
                             "notes": {str(p): prompt, str(p + 1): expl},
