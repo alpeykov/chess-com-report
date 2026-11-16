@@ -594,6 +594,7 @@ JS = """
     setTimeout(function(){ el.scrollIntoView({behavior: 'auto'}); }, smooth ? 700 : 120);
   }
   document.querySelectorAll('nav.toc-card a').forEach(function(a){ a.addEventListener('click', function(e){
+    if (a.getAttribute('href').charAt(0) !== '#') return;  // a link to another page (e.g. the games list)
     e.preventDefault(); const id = a.getAttribute('href').slice(1); history.replaceState(null, '', '#' + id); go(id, true); }); });
   if (location.hash) setTimeout(function(){ go(location.hash.slice(1), false); }, 60);
 })();
@@ -789,7 +790,7 @@ def main():
         link = {"bg": ("Анализ на партиите", "Всички анализирани партии, от най-новата към най-старата: резултат, дебют, точност и грешки. Кликнете партия, за да отворите анализа ѝ."),
                 "en": ("Game analysis", "All analysed games, newest first: result, opening, accuracy and mistakes. Click a game to open its analysis."),
                 "fr": ("Analyse des parties", "Toutes les parties analysées, de la plus récente à la plus ancienne : résultat, ouverture, précision et erreurs. Cliquez une partie pour ouvrir son analyse.")}
-        spec["sections"] = [{"id": "games-link", "before_game": True, "badge": "♞",
+        spec["sections"] = [{"id": "games-link", "before_game": True, "badge": "♞", "href": gp,
                              "title": {lg: v[0] for lg, v in link.items()}, "toc_title": {lg: v[0] for lg, v in link.items()},
                              "html": {lg: f'<p>{v[1]}</p><p><a class="games-btn" href="{gp}">{v[0]} &rarr;</a></p>'
                                       '<style>.games-btn{display:inline-block;padding:10px 18px;border-radius:10px;background:var(--accent);color:var(--on-accent);font-weight:700;text-decoration:none}</style>'
@@ -827,6 +828,7 @@ def main():
         toc, body = [], []
         secs = []  # (id, number, title, toc title, html, colour class)
         lead = [s for s in spec.get("sections", []) if s.get("before_game")]  # e.g. a rule for the reader's next session
+        hrefs = {f'{lang}-{s["id"]}': s["href"] for s in spec.get("sections", []) if s.get("href")}  # contents entry opens another page
         for s in lead:
             secs.append((f'{lang}-{s["id"]}', s.get("badge", "★"), T(s["title"]), T(s.get("toc_title", s["title"])), T(s["html"]), "c6"))
         if ga:
@@ -841,7 +843,7 @@ def main():
             secs.append((f'{lang}-{s["id"]}', num, title, T(s.get("toc_title", s["title"])), T(s["html"]), f"c{k % 8 + 1}"))
             k += 1
         for sid, num, title, toc_t, _, cc in secs:
-            toc.append(f'<li><a href="#{sid}" class="{cc}"><span class="num">{num}</span>{H.escape(re.sub(r"^\d+\.\s*", "", toc_t))}</a></li>')
+            toc.append(f'<li><a href="{hrefs.get(sid, "#" + sid)}" class="{cc}"><span class="num">{num}</span>{H.escape(re.sub(r"^\d+\.\s*", "", toc_t))}</a></li>')
         tiles = "".join(f'<div class="tile"><div class="v">{T(t_["value"])}</div><div class="l">{T(t_["label"])}</div></div>'
                         for t_ in spec.get("tiles", []))
         head = (f'<h1>{H.escape(T(spec["title"]))}</h1><p class="sub">{T(spec.get("subtitle", ""))}</p>'

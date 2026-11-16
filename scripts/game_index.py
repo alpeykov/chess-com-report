@@ -23,6 +23,7 @@ import chess.pgn
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ARCHIVE = ROOT / "game_analysis"
 LANGS = ("bg", "en", "fr")
+PER = 15  # games per page in the list
 
 
 def T(bg, en, fr):
@@ -77,7 +78,7 @@ def nav(home, games=True):
     """Links back to the main report (and to the games list)."""
     a = f'<a href="{home}">'
     b = '<a href="games.html">'
-    return T(f'{a}&larr; Към основния отчет</a>' + (f' &middot; {b}Всички анализирани партии</a>' if games else ""),
+    return T(f'{a}&larr; Към основния репорт</a>' + (f' &middot; {b}Всички анализирани партии</a>' if games else ""),
              f'{a}&larr; Back to the main report</a>' + (f' &middot; {b}All analysed games</a>' if games else ""),
              f'{a}&larr; Retour au rapport principal</a>' + (f' &middot; {b}Toutes les parties analysées</a>' if games else ""))
 
@@ -138,10 +139,20 @@ def main():
                  + {"bg": '<p class="hint">Точност: вие / противникът (Stockfish). Гафове и грешки: вашите ходове, които губят 20% / 10–20% от шанса за победа.</p>',
                     "en": '<p class="hint">Accuracy: you / the opponent (Stockfish). Blunders and mistakes: your moves that lose 20% / 10–20% of the winning chances.</p>',
                     "fr": '<p class="hint">Précision : vous / l\'adversaire (Stockfish). Gaffes et erreurs : vos coups qui perdent 20 % / 10–20 % des chances de gain.</p>'}[lg]
-                 + '<style>.game-row{cursor:pointer}.game-row:hover td{background:var(--hover)}.game-row:focus-visible{outline:2px solid var(--accent)}code.op{font:inherit;font-size:13px;color:var(--muted);background:none;padding:0;border:0}</style>'
+                 + '<style>.game-row{cursor:pointer}.game-row:hover td{background:var(--hover)}.game-row:focus-visible{outline:2px solid var(--accent)}.pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px}.pager button{min-width:36px;height:34px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font:600 14px var(--font);cursor:pointer}.pager button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}.pager button:disabled{opacity:.35;cursor:default}.pager .hint{margin-left:8px}code.op{font:inherit;font-size:13px;color:var(--muted);background:none;padding:0;border:0}</style>'
                  + '<div class="scroll"><table>' + head[lg] + "".join(rows[lg]) + "</table></div>"
+                 + '<div class="pager"></div>'
                  + "<script>document.querySelectorAll('.game-row').forEach(function(r){var go=function(){location.href=r.dataset.href;};"
-                   "r.addEventListener('click',function(e){if(!e.target.closest('a'))go();});r.addEventListener('keydown',function(e){if(e.key==='Enter')go();});});</script>")
+                   "r.addEventListener('click',function(e){if(!e.target.closest('a'))go();});r.addEventListener('keydown',function(e){if(e.key==='Enter')go();});});"
+                   # pagination: PER rows a page, buttons below the table, the page kept in the URL (#p2)
+                   "document.querySelectorAll('main').forEach(function(m){var rows=[].slice.call(m.querySelectorAll('.game-row')),pg=m.querySelector('.pager'),PER=" + str(PER) + ","
+                   "n=Math.ceil(rows.length/PER);if(!pg||n<2)return;var cur=0;"
+                   "function show(i){cur=Math.max(0,Math.min(n-1,i));rows.forEach(function(r,k){r.hidden=Math.floor(k/PER)!==cur;});"
+                   "pg.innerHTML='';var b=function(t,i,dis,act){var x=document.createElement('button');x.type='button';x.textContent=t;x.disabled=dis;if(act)x.className='on';"
+                   "x.addEventListener('click',function(){show(i);history.replaceState(null,'','#p'+(i+1));m.querySelector('table').scrollIntoView({block:'start'});});pg.appendChild(x);};"
+                   "b('\u2039',cur-1,cur===0);for(var i=0;i<n;i++)b(String(i+1),i,false,i===cur);b('\u203A',cur+1,cur===n-1);"
+                   "var s=document.createElement('span');s.className='hint';s.textContent=(cur*PER+1)+'\u2013'+Math.min(rows.length,(cur+1)*PER)+' / '+rows.length;pg.appendChild(s);}"
+                   "var h=/^#p([0-9]+)$/.exec(location.hash);show(h?+h[1]-1:0);});</script>")
             for lg in LANGS}
     spec = {k: base[k] for k in ("langs", "lang", "piece_words", "labels") if k in base}
     spec.update({"title": T("Анализ на партиите", "Game analyses", "Analyses de parties"), "subtitle": nav(a.home, games=False), "tiles": [],
