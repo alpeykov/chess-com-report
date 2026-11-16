@@ -62,6 +62,36 @@ def material(board, colour):
     return out
 
 
+VALUE = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+
+
+def points(board, colour):
+    return sum(VALUE.get(p.piece_type, 0) * (1 if p.color == colour else -1) for p in board.piece_map().values())
+
+
+def material_drop(board, move, after_line, colour):
+    """Points your move gives away against the opponent's best reply (Stockfish's after_line, followed while
+    the exchange goes on: captures and checks, at least 2 plies, at most 6). A move can lose the queen and still
+    keep a won position, so the win-% classes miss it; this catches it."""
+    b = board.copy()
+    start = points(b, colour)
+    b.push(move)
+    n = 0
+    for tok in (after_line or "").split():
+        if tok[0].isdigit():
+            continue
+        try:
+            m = b.parse_san(tok)
+        except ValueError:
+            break
+        cap = b.is_capture(m)
+        b.push(m)
+        n += 1
+        if b.is_game_over() or n >= 6 or (n >= 2 and not cap and not b.is_check()):
+            break
+    return start - points(b, colour)
+
+
 def line_san(board, pv, n):
     b, out = board.copy(), []
     for m in pv[:n]:
@@ -124,9 +154,12 @@ def main():
             if not r or not r.get("mine"):
                 continue
             missed_mate = any(t in ("mate", "back_rank_mate") for t in r.get("motifs_missed") or [])
-            if r.get("class") not in ("mistake", "blunder") and not missed_mate:
-                continue
             b = board_at(ply)
+            drop = material_drop(b, moves[ply], r.get("after_line"), col)
+            if r.get("class") not in ("mistake", "blunder") and not missed_mate and drop < 3:
+                continue
+            if r.get("class") not in ("mistake", "blunder") and drop >= 3:  # still winning, but a piece given away
+                r = dict(r, **{"class": "blunder" if drop >= 5 else "mistake"})
             played = move_info(b, moves[ply])
             multi = eng.analyse(b, lim, multipv=4)
             top = wp_for(multi[0]["score"], col)
@@ -174,7 +207,7 @@ def main():
             tags_a = sorted(set((r.get("motifs_allowed") or [])))
             moments.append({
                 "ply": ply, "move_no": ply // 2 + 1, "played": played, "best": best, "ok": ok, "solution": sol,
-                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "perpetual": perpetual, "mat_before": material(b, col), "mat_end": material(eb, col), "alt": alt, "class": r.get("class"), "missed_mate": missed_mate,
+                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "material_drop": drop, "perpetual": perpetual, "mat_before": material(b, col), "mat_end": material(eb, col), "alt": alt, "class": r.get("class"), "missed_mate": missed_mate,
                 "phase": r.get("phase"), "spent": r.get("spent"), "clock": r.get("clock"),
                 "threat": threat, "allowed": allowed, "motifs_missed": tags, "motifs_allowed": tags_a,
                 "seen_missed": {t: motif_count[("missed", t)] for t in tags}, "seen_allowed": {t: motif_count[("allowed", t)] for t in tags_a},
