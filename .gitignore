@@ -16,3 +16,5 @@ scripts/game_analysis.py
 scripts/regenerate.py
 scripts/render.py
 scripts/template.py
+stockfish/
+sf-download-*/

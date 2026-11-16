@@ -1,13 +1,13 @@
-"""Check for a newer official Stockfish release and install it in place of the current one.
+"""Install Stockfish in the skill's own folder and keep it on the latest official release.
 
-  python update_stockfish.py            check, and install the new version if there is one
+  python update_stockfish.py            install it if missing, update it if there is a newer release
   python update_stockfish.py --check    only report the installed and latest versions
 
-Run it before "analyze the last game" and "regenerate the report". It only touches a copy it can manage:
-the folder layout of the official archive (<root>/stockfish/stockfish-<build>.exe), by default
-C:/projects/stockfish on Windows and ~/stockfish on Linux. A Stockfish installed by apt or brew is
-reported but left alone (update it with the package manager). Without a network connection it says so
-and the analysis goes on with the installed version.
+Run it before "analyze the last game" and "regenerate the report" (sf_scan.py also runs it by itself when
+no Stockfish is found). The skill keeps its own copy in <skill>/stockfish/ (ignored by git), so a fresh
+clone needs no manual setup: the first run downloads it. Other installs (STOCKFISH_PATH, apt, brew,
+C:/projects/stockfish) are never touched; they are only used when the skill's copy cannot be installed,
+for example without a network connection.
 
 The download comes only from the official GitHub releases (github.com/official-stockfish/Stockfish).
 The new build is unpacked next to the old one, started once to check that it answers "uci", and only
@@ -32,6 +32,7 @@ import sf_engine  # noqa: E402
 
 API = "https://api.github.com/repos/official-stockfish/Stockfish/releases/latest"
 UA = {"User-Agent": "chess-report-skill", "Accept": "application/vnd.github+json"}
+ROOT = pathlib.Path(sf_engine.SKILL_ROOT)  # the program goes to ROOT/stockfish/
 
 
 def version_of(exe):
@@ -54,35 +55,30 @@ def latest():
     return rel["tag_name"].replace("sf_", ""), rel["assets"]
 
 
-def pick_asset(assets, exe):
-    """Same build as the installed one (e.g. ...-x86-64-universal), else a safe default for this system."""
+def pick_asset(assets, like=None):
+    """The same build as `like` (e.g. ...-x86-64-universal) if given, else a safe default for this system."""
     names = {a["name"]: a["browser_download_url"] for a in assets}
-    if exe:
-        stem = pathlib.Path(exe).stem  # stockfish-windows-x86-64-universal
+    if like:
+        stem = pathlib.Path(like).stem.lower()  # stockfish-windows-x86-64-universal
         for n in names:
-            if n.split(".")[0] == stem:
+            if n.split(".")[0].lower() == stem:
                 return n, names[n]
-    sysname = platform.system()
-    want = {"Windows": "stockfish-windows-x86-64-universal.zip", "Linux": "stockfish-ubuntu-x86-64-avx2.tar"}.get(sysname)
+    sysname, mach = platform.system(), platform.machine().lower()
+    want = {"Windows": "stockfish-windows-x86-64-universal.zip",
+            "Linux": "stockfish-ubuntu-x86-64-avx2.tar",
+            "Darwin": "stockfish-macos-m1-apple-silicon.tar" if mach in ("arm64", "aarch64") else "stockfish-macos-x86-64-avx2.tar"}.get(sysname)
     if want in names:
         return want, names[want]
     return None, None
 
 
-def managed_root(exe):
-    """<root> if exe sits in <root>/stockfish/, the layout of the official archive; else None."""
-    p = pathlib.Path(exe).resolve()
-    if p.parent.name.lower() == "stockfish" and not str(p).startswith(("/usr/", "/opt/homebrew")):
-        return p.parent.parent
-    return None
-
-
-def install(url, name, root):
+def install(url, name, root=ROOT):
+    """Download the release archive and put its program folder at root/stockfish/. Returns (path, version)."""
     root.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=root) as tmp:
+    with tempfile.TemporaryDirectory(prefix="sf-download-", dir=root) as tmp:
         arc = pathlib.Path(tmp) / name
         print(f"Downloading {url}")
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA["User-Agent"]}), timeout=120) as r, open(arc, "wb") as f:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA["User-Agent"]}), timeout=300) as r, open(arc, "wb") as f:
             shutil.copyfileobj(r, f)
         out = pathlib.Path(tmp) / "x"
         out.mkdir()
@@ -107,56 +103,56 @@ def install(url, name, root):
         v = version_of(str(exes[0]))
         if not v:
             raise SystemExit("The new build did not answer 'uci' (CPU not supported?); the installed version is kept.")
-        old = root / "stockfish"
-        if old.exists():
-            shutil.rmtree(old)
-        shutil.move(str(new_dir), str(old))
-        keep = root / name
-        shutil.copy2(arc, keep)  # keep the archive next to the folder, as a manual install would
-        for p in root.glob("stockfish-*.zip"):
-            if p.name != name:
-                p.unlink()
-        return str(old / exes[0].name), v
+        dest = root / "stockfish"
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.move(str(new_dir), str(dest))
+        return str(dest / exes[0].name), v
+
+
+def ensure(check=False, quiet=False):
+    """Install or update the skill's copy. Returns the Stockfish path to use (the skill's copy, else any other found)."""
+    say = (lambda *a: None) if quiet else print
+    own = sf_engine.skill_stockfish()
+    have = version_of(own) if own else None
+    other = None if own else sf_engine.find_stockfish()
+    say(f"Skill's Stockfish: {('Stockfish ' + have + ' (' + own + ')') if own else 'not installed yet (' + sf_engine.SKILL_SF + ')'}")
+    try:
+        new, assets = latest()
+    except Exception as e:
+        say(f"Could not reach GitHub ({e.__class__.__name__}); going on with "
+            f"{own or other or 'the material engine (no Stockfish found)'}.")
+        return own or other
+    say(f"Latest release: Stockfish {new}")
+    if own and not have:
+        say("The skill's copy reports no release number (a development build?); left as it is.")
+        return own
+    if have and as_tuple(have) >= as_tuple(new):
+        say("Up to date.")
+        return own
+    if check:
+        say("Run without --check to " + ("update it." if own else "install it."))
+        return own or other
+    name, url = pick_asset(assets, own or other)
+    if not url:
+        say("No matching build for this system in the release; download it by hand from "
+            "https://github.com/official-stockfish/Stockfish/releases/latest and set STOCKFISH_PATH.")
+        return own or other
+    try:
+        path, v = install(url, name)
+    except (OSError, SystemExit) as e:
+        say(f"Install failed ({e}); going on with {own or other or 'the material engine'}.")
+        return own or other
+    say(f"{'Updated to' if own else 'Installed'} Stockfish {v}: {path}")
+    if own:
+        say("Earlier games keep their cached analysis; 'sf_scan.py ... --full' redoes them with the new version.")
+    return path
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="only report, do not install")
-    ap.add_argument("--stockfish", help="path to the installed Stockfish (default: the one the skill finds)")
-    ap.add_argument("--root", help="where to install when none is found (default C:/projects/stockfish or ~/stockfish)")
-    a = ap.parse_args()
-
-    exe = sf_engine.find_stockfish(a.stockfish)
-    have = version_of(exe) if exe else None
-    print(f"Installed: {('Stockfish ' + have) if have else 'none'}{(' (' + exe + ')') if exe else ''}")
-    try:
-        new, assets = latest()
-    except Exception as e:
-        print(f"Could not reach GitHub ({e.__class__.__name__}); going on with the installed version.")
-        return
-    print(f"Latest release: Stockfish {new}")
-    if have and as_tuple(have) >= as_tuple(new):
-        print("Up to date.")
-        return
-    if exe and not have:
-        print("The installed build reports no release number (a development build?); left as it is.")
-        return
-    if a.check:
-        print("A newer version is available; run without --check to install it.")
-        return
-    root = managed_root(exe) if exe else pathlib.Path(a.root or ("C:/projects/stockfish" if os.name == "nt" else os.path.expanduser("~/stockfish")))
-    if root is None:
-        print(f"{exe} was not installed from the release archive (package manager?). Update it there, "
-              "e.g. 'sudo apt upgrade stockfish' or 'brew upgrade stockfish'.")
-        return
-    name, url = pick_asset(assets, exe)
-    if not url:
-        print("No matching build for this system in the release; download it by hand from "
-              "https://github.com/official-stockfish/Stockfish/releases/latest")
-        return
-    path, v = install(url, name, pathlib.Path(root))
-    print(f"Installed Stockfish {v}: {path}")
-    print("Earlier games keep their cached analysis; 'sf_scan.py ... --full' redoes them with the new version.")
+    ensure(check=ap.parse_args().check)
 
 
 if __name__ == "__main__":

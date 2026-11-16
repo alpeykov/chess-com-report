@@ -1,7 +1,9 @@
 """Stockfish analysis for the report: one evaluation per position, move classes, accuracy, motifs, clock.
 
-Stockfish is NOT part of this repository (GPLv3, ~100 MB). find_stockfish() looks for it in this order:
-  --stockfish PATH, the STOCKFISH_PATH environment variable, `stockfish` on PATH, C:/projects/stockfish/**.
+Stockfish is NOT part of this repository (GPLv3, ~100 MB). update_stockfish.py downloads it into the skill's own
+folder (<skill>/stockfish/, ignored by git). find_stockfish() looks for it in this order:
+  --stockfish PATH, the STOCKFISH_PATH environment variable, <skill>/stockfish/, `stockfish` on PATH,
+  C:/projects/stockfish/**, the usual apt/brew paths, ~/stockfish/**.
 If it is missing, the skill falls back to the small material engine (engine.py).
 
 Scales (same as lichess):
@@ -22,8 +24,20 @@ VAL = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUE
 CLASSES = [(30, "blunder"), (20, "mistake"), (10, "inaccuracy")]
 
 
+SKILL_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SKILL_SF = os.path.join(SKILL_ROOT, "stockfish")  # the copy update_stockfish.py installs and keeps current
+
+
+def skill_stockfish():
+    """The Stockfish program in <skill>/stockfish/, or None."""
+    for c in sorted(glob.glob(os.path.join(SKILL_SF, "stockfish*"))):
+        if os.path.isfile(c) and (c.lower().endswith(".exe") or (os.name != "nt" and os.access(c, os.X_OK))):
+            return c
+    return None
+
+
 def find_stockfish(path=None):
-    cands = [path, os.environ.get("STOCKFISH_PATH"), shutil.which("stockfish"), shutil.which("stockfish.exe")]
+    cands = [path, os.environ.get("STOCKFISH_PATH"), skill_stockfish(), shutil.which("stockfish"), shutil.which("stockfish.exe")]
     for pat in ("C:/projects/stockfish/**/stockfish*.exe", "/usr/games/stockfish", "/usr/local/bin/stockfish",
                 "/opt/homebrew/bin/stockfish", os.path.expanduser("~/stockfish/**/stockfish*")):
         cands += sorted(glob.glob(pat, recursive=True))

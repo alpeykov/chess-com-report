@@ -155,6 +155,9 @@ def main():
     a = ap.parse_args()
     me, out = a.username.strip().lower(), pathlib.Path(a.dir)
     path = S.find_stockfish(a.stockfish)
+    if not path:  # first run on a fresh clone: install the skill's own copy
+        import update_stockfish
+        path = update_stockfish.ensure(quiet=True)
     if not path:
         sys.exit("Stockfish not found: pass --stockfish PATH or set STOCKFISH_PATH (see README). "
                  "The report can still be built with the material engine (scan.py).")
