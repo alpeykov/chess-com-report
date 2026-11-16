@@ -1,0 +1,155 @@
+"""Build the game-analysis pages from the skill's game_analysis/ archive (archive_game.py).
+
+    python game_index.py USERNAME --out DIR [--home index.html]
+
+Writes into DIR:
+  games.html          every analysed game, newest first: date, colour, opponent and ratings, result and how it
+                      ended, opening, moves, accuracy, mistakes; a click on a row opens that game's page
+  game-<id>.html      one page per game (its analysis, boards and puzzles), with links back to the main report
+                      and to games.html
+The main report links to games.html (spec "games_page"); every page links back to --home (the main report's file
+name next to these pages: index.html for the published artifact, report.html in a local folder).
+"""
+import argparse
+import json
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+
+import chess.pgn
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+ARCHIVE = ROOT / "game_analysis"
+LANGS = ("bg", "en", "fr")
+
+
+def T(bg, en, fr):
+    return {"bg": bg, "en": en, "fr": fr}
+
+
+HOW = [("checkmate", T("мат", "checkmate", "mat")), ("resignation", T("предаване", "resignation", "abandon")),
+       ("on time", T("на време", "on time", "au temps")), ("abandoned", T("напускане", "abandoned", "partie quittée")),
+       ("repetition", T("повторение", "repetition", "répétition")), ("agreement", T("споразумение", "agreement", "accord")),
+       ("stalemate", T("пат", "stalemate", "pat")), ("insufficient", T("недостатъчно фигури", "insufficient material", "matériel insuffisant")),
+       ("timeout vs insufficient", T("време срещу недостатъчно фигури", "timeout vs insufficient material", "temps contre matériel insuffisant"))]
+RES = {"w": T("победа", "win", "victoire"), "l": T("загуба", "loss", "défaite"), "d": T("реми", "draw", "nulle")}
+
+
+def info(folder, me):
+    g = chess.pgn.read_game(open(folder / "game.pgn", encoding="utf-8"))
+    h = g.headers
+    white = h.get("White", "").lower() == me
+    res = h.get("Result", "*")
+    r = "d" if res == "1/2-1/2" else ("w" if (res == "1-0") == white else "l")
+    term = h.get("Termination", "").lower()
+    how = next((v for k, v in reversed(HOW) if k in term), T("", "", ""))
+    sf = json.loads((folder / "sf_last.json").read_text(encoding="utf-8")) if (folder / "sf_last.json").exists() else {}
+    ex = json.loads((folder / "last_extra.json").read_text(encoding="utf-8")) if (folder / "last_extra.json").exists() else {}
+    mine = [m for m in sf.get("moves", []) if m.get("mine")]
+    opening = h.get("ECOUrl", "").rstrip("/").rsplit("/", 1)[-1].replace("-", " ")
+    plies = len(list(g.mainline_moves()))
+    return {"id": h.get("Link", "").rstrip("/").rsplit("/", 1)[-1], "folder": folder, "white": white, "r": r, "how": how,
+            "when": f"{h.get('UTCDate', '')} {h.get('UTCTime', '')}", "date": h.get("UTCDate", "").replace(".", "-"),
+            "opp": h["Black"] if white else h["White"], "opp_elo": h.get("BlackElo" if white else "WhiteElo", ""),
+            "my_elo": h.get("WhiteElo" if white else "BlackElo", ""), "eco": h.get("ECO", ""), "opening": opening,
+            "moves": (plies + 1) // 2, "acc": sf.get("accuracy"), "acc_opp": sf.get("accuracy_opp"),
+            "blunders": sum(1 for m in mine if m.get("class") == "blunder"),
+            "mistakes": sum(1 for m in mine if m.get("class") == "mistake"),
+            "puzzles": len(ex.get("moments", [])), "link": h.get("Link", "")}
+
+
+def build(spec, pgn, out_html):
+    """Run build_report.py on a spec in a temporary folder (the game's PGN as last.pgn)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = pathlib.Path(tmp)
+        if pgn:
+            shutil.copyfile(pgn, tmp / "last.pgn")
+        (tmp / "spec.json").write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+        r = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_report.py"), "--dir", str(tmp), "--spec", str(tmp / "spec.json"),
+                            "--out", str(out_html)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if r.returncode:
+            raise RuntimeError(r.stdout + r.stderr)
+
+
+def nav(home, games=True):
+    """Links back to the main report (and to the games list)."""
+    a = f'<a href="{home}">'
+    b = '<a href="games.html">'
+    return T(f'{a}&larr; Към основния отчет</a>' + (f' &middot; {b}Всички анализирани партии</a>' if games else ""),
+             f'{a}&larr; Back to the main report</a>' + (f' &middot; {b}All analysed games</a>' if games else ""),
+             f'{a}&larr; Retour au rapport principal</a>' + (f' &middot; {b}Toutes les parties analysées</a>' if games else ""))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("username")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--home", default="index.html", help="file name of the main report next to these pages")
+    a = ap.parse_args()
+    me, out = a.username.strip().lower(), pathlib.Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    games = [info(f, me) for f in sorted(ARCHIVE.iterdir()) if (f / "analysis_spec.json").exists() and (f / "game.pgn").exists()]
+    games.sort(key=lambda x: x["when"], reverse=True)
+    if not games:
+        sys.exit("no archived games")
+    base = json.loads((games[0]["folder"] / "analysis_spec.json").read_text(encoding="utf-8"))
+    langs = base.get("langs") or ["en"]
+
+    # one page per game
+    for gm in games:
+        raw = (gm["folder"] / "analysis_spec.json").read_text(encoding="utf-8")
+        # in the archive every game is just "the game", not "the latest game"
+        for old, new in (("Последна партия", "Партия"), ("Latest game", "Game"), ("Dernière partie", "Partie"), ("Анализ на партия: ", "Партия: ")):
+            raw = raw.replace(old, new)
+        spec = json.loads(raw)
+        spec["subtitle"] = nav(a.home)
+        build(spec, gm["folder"] / "game.pgn", out / f"game-{gm['id']}.html")
+
+    # the list
+    th = lambda *c: "".join(f"<th>{x}</th>" for x in c)
+    head = {lg: "<tr>" + th(*[{"bg": b, "en": e, "fr": f}[lg] for b, e, f in [
+        ("Дата", "Date", "Date"), ("Цвят", "Colour", "Couleur"), ("Противник", "Opponent", "Adversaire"), ("Резултат", "Result", "Résultat"),
+        ("Дебют", "Opening", "Ouverture"), ("Ходове", "Moves", "Coups"), ("Точност", "Accuracy", "Précision"),
+        ("Гафове / грешки", "Blunders / mistakes", "Gaffes / erreurs"), ("Задачи", "Puzzles", "Problèmes")]]) + "</tr>" for lg in LANGS}
+    rows = {lg: [] for lg in LANGS}
+    for gm in games:
+        page = f"game-{gm['id']}.html"
+        tag = {"w": "w", "l": "l", "d": "n"}[gm["r"]]
+        for lg in LANGS:
+            col = {"bg": ("белите", "черните"), "en": ("White", "Black"), "fr": ("Blancs", "Noirs")}[lg][0 if gm["white"] else 1]
+            piece = "&#9675;" if gm["white"] else "&#9679;"  # empty / full circle
+            how = gm["how"][lg]
+            acc = (f'{gm["acc"]:.0f}' if gm["acc"] is not None else "–") + " / " + (f'{gm["acc_opp"]:.0f}' if gm["acc_opp"] is not None else "–")
+            rows[lg].append(
+                f'<tr class="game-row" data-href="{page}" tabindex="0">'
+                f'<td class="num">{gm["date"]}</td><td>{piece} {col}</td>'
+                f'<td><a href="{page}">{gm["opp"]}</a> <span class="hint">({gm["opp_elo"]})</span><br><span class="hint">'
+                + {"bg": "вие", "en": "you", "fr": "vous"}[lg] + f' {gm["my_elo"]}</span></td>'
+                f'<td><span class="tag {tag}">{RES[gm["r"]][lg]}</span>' + (f'<br><span class="hint">{how}</span>' if how else "") + "</td>"
+                f'<td>{gm["eco"]}<br><code class="op">{gm["opening"]}</code></td><td class="num">{gm["moves"]}</td>'
+                f'<td class="num">{acc}</td><td class="num">{gm["blunders"]} / {gm["mistakes"]}</td><td class="num">{gm["puzzles"]}</td></tr>')
+    n = len(games)
+    w, l, d = (sum(1 for g in games if g["r"] == k) for k in "wld")
+    html = {lg: ({"bg": f"<p>{n} анализирани партии, от най-новата към най-старата ({w} победи, {l} загуби, {d} реми). Кликнете ред, за да отворите анализа.</p>",
+                  "en": f"<p>{n} analysed games, newest first ({w} wins, {l} losses, {d} draws). Click a row to open the analysis.</p>",
+                  "fr": f"<p>{n} parties analysées, de la plus récente à la plus ancienne ({w} victoires, {l} défaites, {d} nulles). Cliquez une ligne pour ouvrir l'analyse.</p>"}[lg]
+                 + {"bg": '<p class="hint">Точност: вие / противникът (Stockfish). Гафове и грешки: вашите ходове, които губят 20% / 10–20% от шанса за победа.</p>',
+                    "en": '<p class="hint">Accuracy: you / the opponent (Stockfish). Blunders and mistakes: your moves that lose 20% / 10–20% of the winning chances.</p>',
+                    "fr": '<p class="hint">Précision : vous / l\'adversaire (Stockfish). Gaffes et erreurs : vos coups qui perdent 20 % / 10–20 % des chances de gain.</p>'}[lg]
+                 + '<style>.game-row{cursor:pointer}.game-row:hover td{background:var(--hover)}.game-row:focus-visible{outline:2px solid var(--accent)}code.op{font:inherit;font-size:13px;color:var(--muted);background:none;padding:0;border:0}</style>'
+                 + '<div class="scroll"><table>' + head[lg] + "".join(rows[lg]) + "</table></div>"
+                 + "<script>document.querySelectorAll('.game-row').forEach(function(r){var go=function(){location.href=r.dataset.href;};"
+                   "r.addEventListener('click',function(e){if(!e.target.closest('a'))go();});r.addEventListener('keydown',function(e){if(e.key==='Enter')go();});});</script>")
+            for lg in LANGS}
+    spec = {k: base[k] for k in ("langs", "lang", "piece_words", "labels") if k in base}
+    spec.update({"title": T("Анализ на партиите", "Game analyses", "Analyses de parties"), "subtitle": nav(a.home, games=False), "tiles": [],
+                 "sections": [{"id": "games", "title": T("Анализирани партии", "Analysed games", "Parties analysées"),
+                               "toc_title": T("Партии", "Games", "Parties"), "html": html}], "viewers": {}})
+    build(spec, None, out / "games.html")
+    print(f"games.html and {len(games)} game pages written to {out}")
+
+
+if __name__ == "__main__":
+    main()

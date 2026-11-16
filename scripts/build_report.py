@@ -781,6 +781,19 @@ def main():
 
     viewers, vdata = spec.get("viewers", {}), {}
     ga = spec.get("game_analysis")
+    gp = spec.get("games_page")
+    if gp:  # the game analyses have their own pages (game_index.py): link to them instead of showing the last game here
+        ga = None
+        used = set(re.findall(r"\{\{V:([\w-]+)\}\}", json.dumps(spec.get("sections", []), ensure_ascii=False)))
+        viewers = {k: v for k, v in viewers.items() if k in used}
+        link = {"bg": ("Анализ на партиите", "Всички анализирани партии, от най-новата към най-старата: резултат, дебют, точност и грешки. Кликнете партия, за да отворите анализа ѝ."),
+                "en": ("Game analysis", "All analysed games, newest first: result, opening, accuracy and mistakes. Click a game to open its analysis."),
+                "fr": ("Analyse des parties", "Toutes les parties analysées, de la plus récente à la plus ancienne : résultat, ouverture, précision et erreurs. Cliquez une partie pour ouvrir son analyse.")}
+        spec["sections"] = [{"id": "games-link", "before_game": True, "badge": "♞",
+                             "title": {lg: v[0] for lg, v in link.items()}, "toc_title": {lg: v[0] for lg, v in link.items()},
+                             "html": {lg: f'<p>{v[1]}</p><p><a class="games-btn" href="{gp}">{v[0]} &rarr;</a></p>'
+                                      '<style>.games-btn{display:inline-block;padding:10px 18px;border-radius:10px;background:var(--accent);color:var(--on-accent);font-weight:700;text-decoration:none}</style>'
+                                      for lg, v in link.items()}}] + list(spec.get("sections", []))
     if ga and ga.get("viewer"):
         viewers = dict(viewers, **{"game": ga["viewer"]})
     for vid, v in viewers.items():
