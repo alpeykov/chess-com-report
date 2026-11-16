@@ -214,6 +214,18 @@ def main():
         if m["db"] and x["best"] != x["main"] and x["best_db"] and x["best_db"][2] - m["db"][2] >= 4:
             weak.append(dict(x, gap=round(x["best_db"][2] - m["db"][2], 1)))
     weak.sort(key=lambda x: -(x["gap"] * x["mine"][0]["times"]))
+    # what your move and the better one do, checked with Stockfish (no engine: board facts only)
+    import move_ideas
+    eng = move_ideas.open_engine()
+    try:
+        for w in weak[:6]:
+            b = chess.Board()
+            for s in w["line"]:
+                b.push_san(s)
+            w["ideas"] = move_ideas.ideas(b, [w["mine"][0]["san"], w["best"]], eng)
+    finally:
+        if eng:
+            eng.quit()
     novelties = sorted(({"line": k[0].split(), "san": k[1], "white": k[2], "games": len(v), "score": sc(v)} for k, v in nov.items() if len(v) >= 2),
                        key=lambda x: -x["games"])
 

@@ -8,6 +8,8 @@ viewers it refers to ({{V:ex1}} ...); add them to the spec's "viewers". Every nu
 """
 import chess
 
+import move_ideas
+
 LANGS = ("bg", "en", "fr")
 SPEEDS = {"rapid": ("рапид", "rapid", "rapide"), "blitz": ("блиц", "blitz", "blitz"), "bullet": ("бълет", "bullet", "bullet"),
           "correspondence": ("кореспондентски", "correspondence", "par correspondance")}
@@ -61,6 +63,35 @@ def arrow(line, san, colour):
         b.push_san(s)
     mv = b.parse_san(san)
     return [chess.square_name(mv.from_square), chess.square_name(mv.to_square), colour]
+
+
+def _says(w, fr, san):
+    """' 2.e3 opens ... .' for one move from w["ideas"], {} when there is nothing to say."""
+    f = (w.get("ideas") or {}).get(san)
+    if not f:
+        return None
+    out = {lg: move_ideas.join(move_ideas.clauses(f, lg, fr), lg) for lg in LANGS}
+    return None if not out["en"] else {lg: f" {move_txt(fr, san)} {out[lg]}." for lg in LANGS}
+
+
+def own_note(w, fr):
+    return _says(w, fr, w["mine"][0]["san"]) or ""
+
+
+def best_note(w, fr):
+    """Why the better move is better: what it does, Stockfish's win % for both moves (your colour) and its main line."""
+    ideas, best, mine = w.get("ideas") or {}, w["best"], w["mine"][0]["san"]
+    head = _says(w, fr, best)
+    head = {lg: head[lg].strip() for lg in LANGS} if head else J(move_txt(fr, best), T(" печели най-много в базата на вашето ниво.",
+                                                                                      " scores best in the database at your level.",
+                                                                                      " rapporte le plus dans la base à votre niveau."))
+    b, m = ideas.get(best, {}), ideas.get(mine, {})
+    if "wp" not in b or "wp" not in m:
+        return head
+    parts = [head, T(" Stockfish: ", " Stockfish: ", " Stockfish : "), P(b["wp"]), T(" срещу ", " against ", " contre "), P(m["wp"]), T(" за ", " for ", " pour "), move_txt(fr, mine), "."]
+    if b.get("pv"):
+        parts += [T(" Възможно продължение: ", " A likely line: ", " Suite possible : "), move_ideas.pv_txt(fr + 1, b["pv"]), "."]
+    return J(*parts)
 
 
 def build(E, max_rows=6, boards=2):
@@ -156,16 +187,15 @@ def build(E, max_rows=6, boards=2):
                                      # the most played move too, when it is neither yours nor the best one
                                      J(T(" Най-играният: ", " Most played: ", " Le plus joué : "), move_txt(fr, w["popular"]), " (",
                                        T("в ", "in ", "dans "), P(w["popular_db"][1]), T(" от партиите, ", " of games, ", " des parties, "), P(w["popular_db"][2]), ").")
-                                     if w["popular"] not in (m["san"], w["best"]) and w["popular_db"] else ""),
-                          str(fr + 1): J(move_txt(fr, w["best"]), T(" печели най-много в базата на вашето ниво.", " scores best in the database at your level.",
-                                                                     " rapporte le plus dans la base à votre niveau."))},
+                                     if w["popular"] not in (m["san"], w["best"]) and w["popular_db"] else "", own_note(w, fr)),
+                          str(fr + 1): best_note(w, fr)},
                 "arrows": {str(fr): [arrow(w["line"], m["san"], "red"), arrow(w["line"], w["best"], "green")]},
             }
             bl.append(f"{{{{V:{vid}}}}}")
         html += ['<div class="vgrid">', "".join(bl), "</div>",
-                 T("<p class=\"hint\">Червено: вашият обичаен ход. Зелено: ходът с най-добра успеваемост в базата.</p>",
-                   "<p class=\"hint\">Red: your usual move. Green: the move that scores best in the database.</p>",
-                   "<p class=\"hint\">Rouge : votre coup habituel. Vert : le coup qui rapporte le plus dans la base.</p>")]
+                 T("<p class=\"hint\">Червено: вашият обичаен ход. Зелено: ходът с най-добра успеваемост в базата. Процентите от Stockfish са шансовете ви за победа с вашия цвят.</p>",
+                   "<p class=\"hint\">Red: your usual move. Green: the move that scores best in the database. Stockfish percentages are your winning chances with your colour.</p>",
+                   "<p class=\"hint\">Rouge : votre coup habituel. Vert : le coup qui rapporte le plus dans la base. Les pourcentages de Stockfish sont vos chances de gain avec votre couleur.</p>")]
 
     # ---- your own departures
     nov = E["novelties"][:5]
