@@ -44,7 +44,7 @@ Source, one of:
 - `"game": N`: game number `n` from `games.json`;
 - `"game": "last"`: `OUT/last.pgn`.
 
-Options: `orientation` (`white`/`black`, use the player's colour), `from_ply`/`to_ply` (show only part of a game), `notes`, `arrows` (`[from, to, colour]`, colours `green` good move, `red` threat/mistake, `yellow` idea, `blue` neutral), `fills` (square → colour), `start_index` (frame shown first).
+Options: `orientation` (`white`/`black`, use the player's colour), `from_ply`/`to_ply` (show only part of a game), `notes`, `arrows` (`[from, to, colour]`, colours `green` good move, `red` threat/mistake, `yellow` idea, `blue` neutral), `fills` (square → colour), `start_index` (frame shown first), `puzzle` (`{"ok": [uci, ...]}`: the first frame becomes a puzzle — the reader clicks a piece and a square, any listed move solves it, the later frames open after that or on "Show the answer"; put the task in the first note and the explanation in the next).
 
 Keys of `notes`/`arrows`/`fills` are frame numbers = plies played (see SKILL.md conventions).
 

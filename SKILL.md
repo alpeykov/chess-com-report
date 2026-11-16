@@ -34,7 +34,7 @@ chess-report-<username>/
 | User says | Do |
 |---|---|
 | first request / "make my report" | Full workflow below (steps 1-6). |
-| "analyze the last game" | Steps 1 (`--last-only`), 4, then replace **only** `game_analysis` in the existing spec and rebuild (step 6). Do not recompute statistics or rewrite other sections. |
+| "analyze the last game" | Steps 1 (`--last-only`), 3b for the last game, 4 and 4b, then replace **only** `game_analysis` in the existing spec and rebuild (step 6). Do not recompute statistics or rewrite other sections. |
 | "regenerate the report" | Steps 1-3 and 5-6: download and statistics cover all games, the scan adds only the new games (a few seconds); keep the current `game_analysis` as it is. Before rebuilding, search the spec (or the script that writes it) for numbers typed into the text instead of read from the data files, and update them or make them computed. Then `history.py --add`. |
 
 **Before "analyze the last game" and "regenerate the report"**, first run `python update_skill.py`: it fetches the skill's own git repository and, if there is a newer version, pulls it (fast-forward only; local changes are kept and reported). If it pulled, re-read this file before going on. Tell the user in one line if the skill was updated. Then run `python update_stockfish.py`: the skill keeps its own Stockfish in `<skill>/stockfish/` (ignored by git); the script installs it there from the official GitHub releases if it is missing, and replaces it when there is a newer release. Other installs (STOCKFISH_PATH, apt/brew, C:/projects/stockfish) are never touched. Then do the analysis. Tell the user in one line if Stockfish was installed or updated. If GitHub cannot be reached, go on with the installed version.
@@ -67,6 +67,10 @@ Keep `OUT/report_spec.json` between runs: it is the source of the report, so lat
 4. **Last game (both sides)**
    `python scan.py USERNAME --dir OUT --pgn OUT/last.pgn` (depth 4, all moves in parallel, about 1 minute) → prints every move and writes `OUT/last_flagged.json` with verified lines for both players.
    Also look for forced mates the player missed when attacking (positions just before and during an attack). The engine is a material search: it finds hanging pieces, forks and mates in 1-3, not positional ideas. Only state tactics you verified with a printed line; if unsure, run `engine.pv` on the position.
+
+4b. **Last game, deeper (needs Stockfish)**
+   `python last_game.py USERNAME --dir OUT` (after `sf_scan.py --pgn OUT/last.pgn`; about 30 s) → `OUT/last_extra.json`: for each of the player's mistakes, blunders and missed mates the accepted moves and solution line (a puzzle), the time spent and left, the **threat** in the position (null move: what the opponent would play if it were their turn again), what the move allowed, and how often the same motif came up in the last 50 games; the opponent's mistakes and whether the reply punished them; the opening against the lichess explorer (where the known moves ended, who left first, weaker choices; uses `explorer.json` params and cache, skipped offline); this game against the average of the previous 20 games.
+   `last_game_section.build(json.load(...))` returns `(html, viewers)`: append `html` to `game_analysis["html"]` and add the viewers (`lgp1`… interactive puzzles: a viewer with `"puzzle": {"ok": [uci, ...]}` waits for the reader's move — click a piece, then a square — and opens the solution once solved or on "Show the answer"). Keep the hand-written key-moment table; these blocks come after it.
 
 5. **Write the spec** `OUT/report_spec.json` in the chosen language. Format: `references/spec_format.md`. Recommended sections (adapt to what the data shows; skip a section with nothing to say):
    1. Overview: tiles (games, record, rating now/peak, score in last 50), `{{CHART}}`, 3-5 key findings.

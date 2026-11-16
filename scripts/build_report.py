@@ -57,6 +57,13 @@ LABELS = {
                tip_open="Двоен клик върху точката отваря партията", zoom_in="Увеличи", zoom_out="Намали", zoom_reset="Цялата история", zoom_hint="Увеличавайте с + и &minus; или кликнете графиката и въртете колелцето на мишката; при увеличение влачете, за да се местите", opening="Дебют", moves="Ходове", how_checkmate="мат", how_resignation="предаване", how_time="на време", how_abandoned="напускане", how_draw="", how_other=""),
 }
 
+LABELS["en"].update(pz_task="Your move: click a piece, then a square.", pz_pick="Now click the square.", pz_wrong="Not that one. Try again.",
+                    pz_right="Correct!", pz_answer="The answer:", pz_show="Show the answer")
+LABELS["fr"].update(pz_task="À vous : cliquez une pièce, puis une case.", pz_pick="Cliquez maintenant la case.", pz_wrong="Pas celui-là. Réessayez.",
+                    pz_right="Bravo !", pz_answer="La réponse :", pz_show="Montrer la réponse")
+LABELS["bg"].update(pz_task="Ваш ход: кликнете фигура, после поле.", pz_pick="Сега кликнете полето.", pz_wrong="Не е този ход. Опитайте пак.",
+                    pz_right="Вярно!", pz_answer="Отговорът:", pz_show="Покажи отговора")
+
 PIECE_WORDS = {
     "en": dict(K="King", Q="Queen", R="Rook", B="Bishop", N="Knight", takes="takes", pawn="pawn", short="castles",
                long="castles long"),
@@ -258,6 +265,8 @@ details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 .v-controls button{font:600 15px var(--font);min-width:40px;height:38px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);cursor:pointer}
 .v-controls button:hover:not(:disabled){background:var(--hover)}.v-controls button:disabled{opacity:.35;cursor:default}
 .v-controls .v-play{margin-left:auto;background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.pz .v-board{cursor:pointer}.pz-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pz-msg{flex:1;min-width:150px;font-weight:600;font-size:14px;color:var(--ink-2)}.pz-msg.w{color:#7ddcaa}.pz-msg.l{color:#f2a39b}
+.pz-bar button{font:600 14px var(--font);height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);cursor:pointer}.pz-bar button:hover{background:var(--hover)}
 .v-count{min-width:64px;white-space:nowrap;text-align:center;font:700 15px var(--font);font-variant-numeric:tabular-nums}
 .chart-wrap{position:relative}.chart-wrap.armed .chart{outline:1px solid var(--border-strong);outline-offset:2px;border-radius:6px}.chart-zoom{position:absolute;top:2px;right:2px;display:flex;gap:4px;z-index:3}.chart-zoom button{width:30px;height:28px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font:700 16px var(--font);cursor:pointer;line-height:1;padding:0}.chart-zoom button:hover{background:var(--border)}.chart-hint{font-size:12px;color:var(--muted);margin:2px 0 0}.chart.zoomed .hit{cursor:grab}.chart.panning .hit{cursor:grabbing}.chart .guide{stroke:var(--muted);stroke-dasharray:3 3}.chart .hot{fill:none;stroke:var(--ink);stroke-width:2}.chart .hit{cursor:pointer}.chart:focus{outline:none}
 .chart-tip{position:absolute;z-index:5;pointer-events:none;min-width:210px;max-width:290px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink-2);box-shadow:0 6px 20px rgba(0,0,0,.5)}
@@ -320,8 +329,35 @@ JS = """
     const board = root.querySelector('.v-board'), moves = root.querySelector('.v-moves'), cap = root.querySelector('.v-cap'),
           count = root.querySelector('.v-count'), btn = function(a){ return root.querySelector('[data-act="'+a+'"]'); }, play = btn('play');
     let i = 0, timer = null;
+    // a puzzle: the first frame waits for a move (click a piece, then a square); the rest opens once it is solved
+    const pz = v.pz ? {ok: v.pz, solved: false, sel: null} : null;
+    let bar = null;
+    function pieceAt(fen, sq){ const row = fen.split('/')[8 - +sq[1]], f = sq.charCodeAt(0) - 97; let c = 0;
+      for (const ch of row) { if (ch >= '1' && ch <= '8') { c += +ch; if (c > f) return null; } else { if (c === f) return ch; c++; } } return null; }
+    function msg(t, cls){ const m = bar.querySelector('.pz-msg'); m.textContent = t; m.className = 'pz-msg' + (cls ? ' ' + cls : ''); }
+    function drawSel(){ const f = Object.assign({}, fr[0]); if (pz.sel) { f.fl = Object.assign({}, f.fl || {}); f.fl[pz.sel] = 'yellow'; } board.innerHTML = boardSVG(f, v.o); }
+    function solve(right){ pz.solved = true; pz.sel = null; bar.querySelector('[data-act="reveal"]').hidden = true; msg(right ? L.pz_right : L.pz_answer, right ? 'w' : ''); show(1); }
+    if (pz) {
+      root.classList.add('pz');
+      bar = document.createElement('div'); bar.className = 'pz-bar';
+      bar.innerHTML = '<span class="pz-msg"></span><button type="button" data-act="reveal">' + L.pz_show + '</button>';
+      root.querySelector('.v-controls').before(bar);
+      board.addEventListener('click', function(e){
+        if (pz.solved || i !== 0) return;
+        const svg = board.querySelector('svg'); if (!svg) return;
+        const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 360, y = (e.clientY - r.top) / r.height * 360;
+        const c = Math.floor((x - 20) / 40), w = Math.floor((y - 20) / 40); if (c < 0 || c > 7 || w < 0 || w > 7) return;
+        const sq = v.o === 'b' ? String.fromCharCode(104 - c) + (w + 1) : String.fromCharCode(97 + c) + (8 - w);
+        const p = pieceAt(fr[0].fen, sq), whiteToMove = fr[0].ply % 2 === 0;
+        if (p && (p === p.toUpperCase()) === whiteToMove) { pz.sel = sq; drawSel(); msg(L.pz_pick); return; }
+        if (!pz.sel) return;
+        const u = pz.sel + sq; pz.sel = null;
+        if (pz.ok.some(function(m){ return m.slice(0, 4) === u; })) solve(true); else { drawSel(); msg(L.pz_wrong, 'l'); }
+      });
+    }
     function show(n){
       i = Math.max(0, Math.min(fr.length - 1, n));
+      if (pz && !pz.solved) i = 0;
       board.innerHTML = boardSVG(fr[i], v.o);
       if (v.ev) evalGraph(root, v.ev, fr[i].ply, L, function(p){ stop(); const k = fr.findIndex(function(f){ return f.ply === p; }); if (k >= 0) show(k); }, v.o); moves.innerHTML = '<span></span>'; moves.firstChild.textContent = fr[i].moves[lang];
       cap.innerHTML = fr[i].caption[lang];
@@ -329,12 +365,14 @@ JS = """
       count.textContent = (ply === 0 ? L.start : L.move + ' ' + Math.ceil(ply / 2) + (ply % 2 ? '.' : '...')) + ' · ' + (i + 1) + ' / ' + fr.length;
       btn('first').disabled = btn('prev').disabled = i === 0;
       btn('last').disabled = btn('next').disabled = i === fr.length - 1;
+      if (pz) { play.disabled = !pz.solved; if (!pz.solved) { btn('last').disabled = btn('next').disabled = true; msg(L.pz_task); } }
       if (i === fr.length - 1) stop();
     }
     function stop(){ if (timer) { clearInterval(timer); timer = null; } play.textContent = '\\u25B6\\uFE0E ' + L.play; }
     function start(){ if (i === fr.length - 1) show(0); timer = setInterval(function(){ show(i + 1); }, 1600); play.textContent = '\\u275A\\u275A ' + L.pause; }
     root.addEventListener('click', function(e){
       const b = e.target.closest('button'); if (!b) return; const a = b.dataset.act;
+      if (a === 'reveal') { solve(false); return; }
       if (a === 'play') { timer ? stop() : start(); return; }
       stop(); show(a === 'first' ? 0 : a === 'last' ? fr.length - 1 : a === 'prev' ? i - 1 : i + 1);
     });
@@ -756,6 +794,8 @@ def main():
         fr = frames(src, orient, v.get("notes", {}), v.get("arrows", {}), v.get("fills", {}),
                     v.get("from_ply", 0), v.get("to_ply"), langs, words)
         vdata[vid] = {"frames": fr, "start": v.get("start_index", 0), "o": "b" if orient == chess.BLACK else "w"}
+        if v.get("puzzle"):  # {"ok": [uci, ...]}: the first frame is a puzzle, solved by any of these moves
+            vdata[vid]["pz"] = v["puzzle"]["ok"]
         if v.get("evals"):  # White's win % after each ply (sf_scan.py), drawn as a graph under the board
             # shown from the side of the board's orientation (the player's colour): Black sees 100 - White's %
             vdata[vid]["ev"] = [round(100 - w, 1) for w in v["evals"]] if orient == chess.BLACK else v["evals"]

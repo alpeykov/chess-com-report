@@ -38,5 +38,6 @@ See [SKILL.md](SKILL.md) for the workflow and [references/spec_format.md](refere
 | `update_stockfish.py` | Install Stockfish in the skill folder and keep it on the latest release |
 | `explorer.py`, `explorer_section.py` | Compare the openings with the lichess opening explorer (players of a similar rating) and build its report section |
 | `move_ideas.py` | Why one opening move is better than another: board facts plus a Stockfish check, in BG/EN/FR |
+| `last_game.py`, `last_game_section.py` | The last game in depth: puzzles from its mistakes, threats, clock, the opponent's mistakes, recurring motifs, the opening against lichess, comparison with recent games |
 | `update_skill.py` | Pull a newer version of this skill from its git repository |
 | `board_svg.py` | Board, pieces and background scenes |
