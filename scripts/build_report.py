@@ -597,6 +597,13 @@ JS = """
     if (a.getAttribute('href').charAt(0) !== '#') return;  // a link to another page (e.g. the games list)
     e.preventDefault(); const id = a.getAttribute('href').slice(1); history.replaceState(null, '', '#' + id); go(id, true); }); });
   if (location.hash) setTimeout(function(){ go(location.hash.slice(1), false); }, 60);
+  // a link to a move of a game: page.html#ply18 shows the game board at that position
+  const plyHash = /^#ply([0-9]+)$/.exec(location.hash);
+  if (plyHash) setTimeout(function(){
+    document.querySelectorAll('[data-viewer="game"]').forEach(function(root){ if (root._show) root._show(+plyHash[1]); });
+    const vis = [].slice.call(document.querySelectorAll('[data-viewer="game"]')).find(function(r){ return r.offsetParent; });
+    if (vis) { const d = vis.closest('details'); if (d) d.open = true; vis.scrollIntoView({block: 'center'}); vis.focus({preventScroll: true}); }
+  }, 80);
 })();
 """
 
