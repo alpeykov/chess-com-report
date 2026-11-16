@@ -18,6 +18,7 @@ import io
 import json
 import pathlib
 import re
+import urllib.parse
 import chess
 import chess.pgn
 import chess.svg
@@ -831,9 +832,11 @@ def main():
             f'title="{LANG_NAMES.get(lg, lg)}" aria-label="{LANG_NAMES.get(lg, lg)}">{FLAGS.get(lg, lg.upper())}</button>'
             for lg in langs) + "</div>")
     payload = json.dumps(vdata, ensure_ascii=False).replace("</", "<\\/")
-    icon = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' "
-            "rx='14' fill='%231f5fd6'/%3E%3Ctext x='32' y='51' font-size='50' text-anchor='middle' fill='%23ffffff'%3E%E2%99%9E"
-            "%3C/text%3E%3C/svg%3E")
+    # tab icon: a green pawn (chess.com green), drawn with shapes so it does not depend on a font
+    icon_svg = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><g fill='#81b64c' stroke='#45753c' stroke-width='2.5' "
+                "stroke-linejoin='round'><circle cx='32' cy='15' r='10'/><path d='M23 27h18l-3 5c4 6 6 13 7 20H19c1-7 3-14 7-20z'/>"
+                "<rect x='11' y='51' width='42' height='9' rx='3'/></g></svg>")
+    icon = "data:image/svg+xml," + urllib.parse.quote(icon_svg, safe=" ='/:")
     fonts = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" '
              'href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">')
     page = (f'<!doctype html><html lang="{first}"><head><meta charset="utf-8">'
