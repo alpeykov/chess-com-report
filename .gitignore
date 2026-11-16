@@ -18,3 +18,4 @@ scripts/render.py
 scripts/template.py
 stockfish/
 sf-download-*/
+game_analysis/
