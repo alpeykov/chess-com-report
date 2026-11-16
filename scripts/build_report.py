@@ -855,8 +855,7 @@ def main():
                         for t_ in spec.get("tiles", []))
         head = (f'<h1>{H.escape(T(spec["title"]))}</h1><p class="sub">{T(spec.get("subtitle", ""))}</p>'
                 f'<nav class="toc-card" aria-label="{L["contents"]}"><details open><summary>{L["contents"]}'
-                f'<span class="fold-all"><button type="button" data-fold="open">{L["expand"]}</button>'
-                f'<button type="button" data-fold="close">{L["collapse"]}</button></span></summary>'
+                f'</summary>'
                 f'<ol>{"".join(toc)}</ol></details></nav>')
         if tiles:
             body.append(f'<div class="tiles">{tiles}</div>')
