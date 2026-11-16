@@ -16,8 +16,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def git(*args):
-    r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True, timeout=60)
-    return r.returncode, (r.stdout + r.stderr).strip()
+    # git prints UTF-8 (commit subjects may be Cyrillic); the Windows default code page cannot decode it
+    r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+    return r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
 
 
 def main():
