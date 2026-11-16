@@ -52,6 +52,16 @@ def move_info(board, mv):
             "mate": after.is_checkmate(), "check": after.is_check()}
 
 
+def material(board, colour):
+    """Your pieces minus the opponent's, by type: {"P": 1, "B": -1, ...} (zero types left out)."""
+    out = {}
+    for t, k in ((chess.PAWN, "P"), (chess.KNIGHT, "N"), (chess.BISHOP, "B"), (chess.ROOK, "R"), (chess.QUEEN, "Q")):
+        d = len(board.pieces(t, colour)) - len(board.pieces(t, not colour))
+        if d:
+            out[k] = d
+    return out
+
+
 def line_san(board, pv, n):
     b, out = board.copy(), []
     for m in pv[:n]:
@@ -154,7 +164,7 @@ def main():
             tags_a = sorted(set((r.get("motifs_allowed") or [])))
             moments.append({
                 "ply": ply, "move_no": ply // 2 + 1, "played": played, "best": best, "ok": ok, "solution": sol,
-                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "perpetual": perpetual, "alt": alt, "class": r.get("class"), "missed_mate": missed_mate,
+                "before": ev[ply], "after": ev[ply + 1], "best_wp": top, "perpetual": perpetual, "mat_before": material(b, col), "mat_end": material(bb, col), "alt": alt, "class": r.get("class"), "missed_mate": missed_mate,
                 "phase": r.get("phase"), "spent": r.get("spent"), "clock": r.get("clock"),
                 "threat": threat, "allowed": allowed, "motifs_missed": tags, "motifs_allowed": tags_a,
                 "seen_missed": {t: motif_count[("missed", t)] for t in tags}, "seen_allowed": {t: motif_count[("allowed", t)] for t in tags_a},

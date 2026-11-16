@@ -89,6 +89,38 @@ def words(m):
     return out
 
 
+MAT = {"bg": {"P": ("пешка", "пешки"), "N": ("кон", "коня"), "B": ("офицер", "офицера"), "R": ("топ", "топа"), "Q": ("царица", "царици"), "m": ("лека фигура", "леки фигури")},
+       "en": {"P": ("pawn", "pawns"), "N": ("knight", "knights"), "B": ("bishop", "bishops"), "R": ("rook", "rooks"), "Q": ("queen", "queens"), "m": ("minor piece", "minor pieces")},
+       "fr": {"P": ("pion", "pions"), "N": ("cavalier", "cavaliers"), "B": ("fou", "fous"), "R": ("tour", "tours"), "Q": ("dame", "dames"), "m": ("pièce mineure", "pièces mineures")}}
+
+
+def mat_words(d):
+    """{"B": -1, "P": 1} -> 'a bishop down and a pawn up'; equal -> 'level material'."""
+    d = dict(d)
+    if d.get("N") and d.get("B") and (d["N"] > 0) != (d["B"] > 0):  # a knight for a bishop: count them together
+        m = d.pop("N") + d.pop("B")
+        if m:
+            d["m"] = m
+    FR1 = {"P": "un pion", "N": "un cavalier", "B": "un fou", "R": "une tour", "Q": "une dame", "m": "une pièce mineure"}
+    out = {}
+    for lg in LANGS:
+        items = []
+        for k in ("Q", "R", "m", "B", "N", "P"):  # most valuable first: "a rook down and a pawn up"
+            n = d.get(k, 0)
+            if not n:
+                continue
+            one, many = MAT[lg][k]
+            w = {"bg": one, "en": "a " + one, "fr": FR1[k]}[lg] if abs(n) == 1 else f"{abs(n)} {many}"
+            items.append({"bg": f"{w} {'повече' if n > 0 else 'по-малко'}", "en": f"{w} {'up' if n > 0 else 'down'}",
+                          "fr": f"{w} de {'plus' if n > 0 else 'moins'}"}[lg])
+        if not items:
+            out[lg] = {"bg": "с равни фигури", "en": "level on material", "fr": "à égalité de matériel"}[lg]
+        else:
+            sep = {"bg": " и ", "en": " and ", "fr": " et "}[lg]
+            out[lg] = {"bg": "с ", "en": "", "fr": "avec "}[lg] + sep.join(items)
+    return out
+
+
 def clock_txt(sec):
     if sec is None:
         return "–"
@@ -142,6 +174,9 @@ def build(X, max_puzzles=6):
                        if m.get("perpetual") else "",
                        J(T(" Без жертва: ", " Without the sacrifice: ", " Sans sacrifice : "), mv(p, m["alt"]["san"]), " (", P(m["alt"]["wp"]), ").")
                        if m.get("perpetual") and m.get("alt") and m["alt"]["wp"] > m["after"] + 5 else ""))
+            if "mat_before" in m and not m["best"]["mate"]:
+                expl = J(expl, T(" Фигури: сега сте ", " Material: now you are ", " Matériel : maintenant vous êtes "), mat_words(m["mat_before"]),
+                         T("; в края на показания вариант сте ", "; at the end of the line shown you are ", " ; à la fin de la suite montrée vous êtes "), mat_words(m["mat_end"]), ".")
             viewers[vid] = {"moves": " ".join(sans + m["solution"]), "orientation": "white" if white else "black", "from_ply": p,
                             "title": J(T("Ход ", "Move ", "Coup "), m["move_no"], " · ", side, T(" на ход", " to move", " au trait")),
                             "notes": {str(p): prompt, str(p + 1): expl},
