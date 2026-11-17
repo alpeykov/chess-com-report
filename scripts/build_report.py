@@ -226,7 +226,7 @@ a{color:var(--accent)}.sub{color:var(--muted);margin:0 0 20px}
 .tile .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
 .panel{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px}
 .callout{background:var(--side);border:1px solid var(--side-line);border-radius:12px;padding:12px 16px;margin:20px 0}
-.pz-row{margin-top:10px}.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:12px}.vgrid>*{min-width:0}
+.pz-row{margin-top:10px;width:0;min-width:100%}.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:12px}.vgrid>*{min-width:0}
 .lg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;margin-top:12px}
 @media (max-width:860px){.lg{grid-template-columns:minmax(0,1fr)}}
 section[id$="game-analysis"] .lg>div:first-child{position:sticky;top:12px;align-self:start;z-index:2}
