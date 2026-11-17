@@ -226,7 +226,7 @@ a{color:var(--accent)}.sub{color:var(--muted);margin:0 0 20px}
 .tile .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
 .panel{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px}
 .callout{background:var(--side);border:1px solid var(--side-line);border-radius:12px;padding:12px 16px;margin:20px 0}
-.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:12px}.vgrid>*{min-width:0}
+.pz-row{margin-top:10px}.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:12px}.vgrid>*{min-width:0}
 .lg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;margin-top:12px}
 @media (max-width:860px){.lg{grid-template-columns:minmax(0,1fr)}}
 section[id$="game-analysis"] .lg>div:first-child{position:sticky;top:12px;align-self:start;z-index:2}
@@ -681,6 +681,29 @@ def frames(game_or_moves, orient, notes, arrows, fills, from_ply=0, to_ply=None,
     return out
 
 
+
+def embed_puzzles(html, viewers):
+    """Put each puzzle board into the key-move row of the same position, so it sits next to the game board.
+
+    Rows look like  <tr class="mv-row">...{{GOTO:game:<ply>:...}}...</tr><tr class="mv-exp"><td colspan="5">text</td></tr>;
+    a puzzle viewer whose from_ply is that <ply> moves into the row, and drops out of the puzzle grid further down."""
+    by_ply = {v.get("from_ply"): vid for vid, v in viewers.items() if v.get("puzzle")}
+    used = []
+
+    def put(m):
+        vid = by_ply.get(int(m.group(1)))
+        if not vid or vid in used:
+            return m.group(0)
+        used.append(vid)
+        return m.group(0)[:-len("</td></tr>")] + '<div class="pz-row">{{PZ:%s}}</div></td></tr>' % vid
+
+    html = re.sub(r'\{\{GOTO:game:(\d+):[^}]*\}\}(?:(?!</tr>).)*</tr><tr class="mv-exp"><td colspan="5">(?:(?!</td></tr>).)*</td></tr>',
+                  put, html, flags=re.S)
+    for vid in used:
+        html = html.replace("{{V:%s}}" % vid, "").replace("{{PZ:%s}}" % vid, "{{V:%s}}" % vid)
+    # a puzzle grid left empty goes, with its heading and intro
+    return re.sub(r'<h3>[^<]*</h3><p>(?:(?!</p>).)*</p><div class="vgrid">\s*</div>', "", html, flags=re.S)
+
 def viewer_html(vid, title, L, lang):
     t = H.escape(title)
     return (f'<figure class="viewer" id="v-{lang}-{vid}" data-viewer="{vid}" tabindex="0" aria-label="{t}">'
@@ -867,7 +890,7 @@ def main():
             if html_ is None:  # the game analysis, collapsible
                 body.append(f'<section class="card {cc}" id="{sid}"><details class="fold" open><summary><h2><span class="num">{num}</span>'
                             f'{H.escape(title)}</h2></summary><p class="sub">{T(ga.get("sub_html", ""))}</p><div class="lg"><div>{{{{V:game}}}}</div>'
-                            f'<div>{T(ga["html"])}</div></div></details></section>')
+                            f'<div>{embed_puzzles(T(ga["html"]), viewers)}</div></div></details></section>')
             else:
                 body.append(f'<section class="card {cc}" id="{sid}"><details class="fold" open><summary><h2><span class="num">{num}</span>'
                             f'{H.escape(title)}</h2></summary>{html_}</details></section>')
