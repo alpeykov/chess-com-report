@@ -127,6 +127,111 @@ def clock_txt(sec):
     return f"{int(sec) // 60}:{int(sec) % 60:02d}"
 
 
+OPENING_HEADS = {"bg": "Дебютът спрямо базата на lichess", "en": "The opening against the lichess database", "fr": "L'ouverture face à la base lichess"}
+
+
+def opening_boards(X):
+    """Boards for the opening block: where the game left the known moves (played move red, most played green),
+    and each weaker choice of the player (played red, best-scoring green). Returns (html, viewers); html is "" without boards."""
+    import chess
+    op = X.get("opening")
+    if not op or not op.get("steps"):
+        return "", {}
+    sans, b = [], chess.Board()
+    for u in X["moves"]:
+        m = chess.Move.from_uci(u)
+        sans.append(b.san(m))
+        b.push(m)
+
+    def arrow(ply, san, colour):
+        bb = chess.Board()
+        for x in sans[:ply]:
+            bb.push_san(x)
+        try:
+            m = bb.parse_san(san)
+        except ValueError:
+            return None
+        return [chess.square_name(m.from_square), chess.square_name(m.to_square), colour]
+
+    orient = "white" if X["white"] else "black"
+    viewers, items = {}, []
+    ex = op["steps"][-1] if op.get("exit_ply") is not None else None
+    if ex:
+        who = T("Вие излязохте първи от известните ходове с ", "You left the known moves first with ", "Vous avez quitté les coups connus en premier avec ")             if op["who"] == "me" else T("Противникът излезе първи от известните ходове с ", "The opponent left the known moves first with ",
+                                         "L'adversaire a quitté les coups connus en premier avec ")
+        n = ex["db"][0] if ex["db"] else 0
+        note = J(who, mv(ex["ply"], ex["san"]), " (", n, T(" партии в базата", " games in the database", " parties dans la base"), ").",
+                 J(T(" Най-играният ход тук: ", " The most played move here: ", " Le coup le plus joué ici : "), mv(ex["ply"], ex["popular"]), ".")
+                 if ex.get("popular") and ex["popular"] != ex["san"] else "")
+        items.append((ex["ply"], ex["san"], ex.get("popular") if ex.get("popular") != ex["san"] else None, note,
+                      T("Тук партията излезе от известните ходове", "Here the game left the known moves", "Ici la partie a quitté les coups connus")))
+    for w in op.get("weaker", []):
+        if ex and w["ply"] == ex["ply"]:
+            continue
+        note = J(T("Вие: ", "You: ", "Vous : "), mv(w["ply"], w["san"]), " (", T("база ", "database ", "base "), P(w["db"][2]), "). ",
+                 T("По-добре: ", "Better: ", "Mieux : "), mv(w["ply"], w["best"]), " (", P(w["best_db"][2]), T(", играе се в ", ", played in ", ", joué dans "),
+                 P(w["best_db"][1]), T(" от партиите).", " of games).", " des parties)."))
+        items.append((w["ply"], w["san"], w["best"], note, T("Ход с по-добра алтернатива", "A move with a better alternative", "Un coup avec une meilleure alternative")))
+    items.sort(key=lambda t: t[0])
+    for i, (ply, san, alt, note, title) in enumerate(items, 1):
+        vid = f"lgo{i}"
+        ar = [a for a in (arrow(ply, san, "red"), arrow(ply, alt, "green") if alt else None) if a]
+        viewers[vid] = {"moves": " ".join(sans[:ply + 1]), "orientation": orient, "start_index": ply,
+                        "title": J(f"{i}. ", title, " (", T("ход ", "move ", "coup "), ply // 2 + 1, ")"),
+                        "notes": {str(ply): note}, "arrows": {str(ply): ar}}
+    if not viewers:
+        return "", {}
+    html = J('<div class="vgrid">', "".join(f"{{{{V:{v}}}}}" for v in viewers), "</div>",
+             T("<p class=\"hint\">Червено: изиграният ход. Зелено: най-играният ход (където партията излезе от известните ходове) или ходът с по-добра успеваемост в базата.</p>",
+               "<p class=\"hint\">Red: the move played. Green: the most played move (where the game left the known moves) or the move that scores better in the database.</p>",
+               "<p class=\"hint\">Rouge : le coup joué. Vert : le coup le plus joué (là où la partie a quitté les coups connus) ou le coup qui rapporte plus dans la base.</p>"))
+    return html, viewers
+
+
+def opening_html(X):
+    """The opening block (text and boards): a list of parts for J() and the boards' viewers. Empty without opening data."""
+    html, viewers = [], {}
+    op = X.get("opening")
+    if op and op["steps"]:
+        prm = op["params"]
+        rs = [int(x) for x in prm["ratings"].split(",")]
+        band = f"{rs[0]}–{rs[-1] + 199}"
+        html += ["<h3>", T("Дебютът спрямо базата на lichess", "The opening against the lichess database", "L'ouverture face à la base lichess"), "</h3>"]
+        known = [s["san"] for s in op["steps"] if s["db"] and s["db"][0] >= prm["min_games"]]
+        ex = op["steps"][-1] if op["exit_ply"] is not None else None
+        txt = [T(f"<p>Сравнено с партиите на играчи с рейтинг {band} в lichess. Известни ходове (поне {prm['min_games']} партии): ",
+                 f"<p>Compared with the games of players rated {band} on lichess. Known moves (at least {prm['min_games']} games): ",
+                 f"<p>Comparé aux parties des joueurs classés {band} sur lichess. Coups connus (au moins {prm['min_games']} parties) : "),
+               line(0, known) if known else "—", ". "]
+        if ex:
+            n = ex["db"][0] if ex["db"] else 0
+            who = T("Вие излязохте първи", "You left them first", "Vous en êtes sorti le premier") if op["who"] == "me" else \
+                T("Противникът излезе първи", "The opponent left them first", "L'adversaire en est sorti le premier")
+            txt += [who, T(" с ", " with ", " avec "), mv(ex["ply"], ex["san"]), " (", n, T(" партии в базата", " games in the database", " parties dans la base"),
+                     J(T("; най-играният ход там е ", "; the most played move there is ", " ; le coup le plus joué est "), mv(ex["ply"], ex["popular"]))
+                     if ex.get("popular") and ex["popular"] != ex["san"] else "", ")."]
+        txt.append("</p>")
+        html += txt
+        rare_opp = [s for s in op["steps"] if not s["mine"] and s["db"] and s["best_db"] and s["db"][1] < 5 and s["best"] != s["san"]]
+        for s in rare_opp[:1]:
+            html.append(J(T("<p>Противникът изигра рядкото ", "<p>The opponent played the rare ", "<p>L'adversaire a joué le rare "), mv(s["ply"], s["san"]),
+                          T(" (в ", " (in ", " (dans "), P(s["db"][1]), T(" от партиите). Успеваемостта му в базата е ", " of games). It scores ",
+                                                                            " des parties). Il rapporte "), P(s["db"][2]),
+                          T(" срещу ", " in the database, against ", " dans la base, contre "),P(s["best_db"][2]), T(" за ", " for ", " pour "), mv(s["ply"], s["best"]),
+                          T(": такъв ход дава шанс да вземете инициативата.</p>", ": a move like that gives you a chance to take the initiative.</p>",
+                            " : un tel coup vous donne l'occasion de prendre l'initiative.</p>")))
+        for s in op["weaker"]:
+            html.append(J("<p>", mv(s["ply"], s["san"]), T(" печели ", " scores ", " rapporte "), P(s["db"][2]), T(" в базата, а ", " in the database, while ", " dans la base, alors que "),
+                          mv(s["ply"], s["best"]), T(" печели ", " scores ", " rapporte "), P(s["best_db"][2]), T(" (играе се в ", " (played in ", " (joué dans "),
+                          P(s["best_db"][1]), T(" от партиите).</p>", " of games).</p>", " des parties).</p>")))
+
+        ob_html, ob_viewers = opening_boards(X)
+        if ob_html:
+            html.append(ob_html)
+            viewers.update(ob_viewers)
+    return html, viewers
+
+
 def build(X, max_puzzles=10):
     white = X["white"]
     side = T("белите", "White", "les Blancs") if white else T("черните", "Black", "les Noirs")
@@ -274,39 +379,9 @@ def build(X, max_puzzles=10):
         html.append("</table></div>")
 
     # ---- 6. the opening against the lichess database
-    op = X.get("opening")
-    if op and op["steps"]:
-        prm = op["params"]
-        rs = [int(x) for x in prm["ratings"].split(",")]
-        band = f"{rs[0]}–{rs[-1] + 199}"
-        html += ["<h3>", T("Дебютът спрямо базата на lichess", "The opening against the lichess database", "L'ouverture face à la base lichess"), "</h3>"]
-        known = [s["san"] for s in op["steps"] if s["db"] and s["db"][0] >= prm["min_games"]]
-        ex = op["steps"][-1] if op["exit_ply"] is not None else None
-        txt = [T(f"<p>Сравнено с партиите на играчи с рейтинг {band} в lichess. Известни ходове (поне {prm['min_games']} партии): ",
-                 f"<p>Compared with the games of players rated {band} on lichess. Known moves (at least {prm['min_games']} games): ",
-                 f"<p>Comparé aux parties des joueurs classés {band} sur lichess. Coups connus (au moins {prm['min_games']} parties) : "),
-               line(0, known) if known else "—", ". "]
-        if ex:
-            n = ex["db"][0] if ex["db"] else 0
-            who = T("Вие излязохте първи", "You left them first", "Vous en êtes sorti le premier") if op["who"] == "me" else \
-                T("Противникът излезе първи", "The opponent left them first", "L'adversaire en est sorti le premier")
-            txt += [who, T(" с ", " with ", " avec "), mv(ex["ply"], ex["san"]), " (", n, T(" партии в базата", " games in the database", " parties dans la base"),
-                     J(T("; най-играният ход там е ", "; the most played move there is ", " ; le coup le plus joué est "), mv(ex["ply"], ex["popular"]))
-                     if ex.get("popular") and ex["popular"] != ex["san"] else "", ")."]
-        txt.append("</p>")
-        html += txt
-        rare_opp = [s for s in op["steps"] if not s["mine"] and s["db"] and s["best_db"] and s["db"][1] < 5 and s["best"] != s["san"]]
-        for s in rare_opp[:1]:
-            html.append(J(T("<p>Противникът изигра рядкото ", "<p>The opponent played the rare ", "<p>L'adversaire a joué le rare "), mv(s["ply"], s["san"]),
-                          T(" (в ", " (in ", " (dans "), P(s["db"][1]), T(" от партиите). Успеваемостта му в базата е ", " of games). It scores ",
-                                                                            " des parties). Il rapporte "), P(s["db"][2]),
-                          T(" срещу ", " in the database, against ", " dans la base, contre "),P(s["best_db"][2]), T(" за ", " for ", " pour "), mv(s["ply"], s["best"]),
-                          T(": такъв ход дава шанс да вземете инициативата.</p>", ": a move like that gives you a chance to take the initiative.</p>",
-                            " : un tel coup vous donne l'occasion de prendre l'initiative.</p>")))
-        for s in op["weaker"]:
-            html.append(J("<p>", mv(s["ply"], s["san"]), T(" печели ", " scores ", " rapporte "), P(s["db"][2]), T(" в базата, а ", " in the database, while ", " dans la base, alors que "),
-                          mv(s["ply"], s["best"]), T(" печели ", " scores ", " rapporte "), P(s["best_db"][2]), T(" (играе се в ", " (played in ", " (joué dans "),
-                          P(s["best_db"][1]), T(" от партиите).</p>", " of games).</p>", " des parties).</p>")))
+    oh, ov = opening_html(X)
+    html += oh
+    viewers.update(ov)
 
     # ---- 7. against the previous games
     cp = X.get("compare")

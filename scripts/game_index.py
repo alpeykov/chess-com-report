@@ -74,6 +74,38 @@ def build(spec, pgn, out_html):
             raise RuntimeError(r.stdout + r.stderr)
 
 
+def add_opening_boards(spec, folder):
+    """Games archived before the opening boards existed: add them from the archived last_extra.json, after the opening paragraphs;
+    a game without the opening block at all gets the whole block (text and boards), before the comparison with earlier games."""
+    ga = spec.get("game_analysis") or {}
+    ex_file = folder / "last_extra.json"
+    if not isinstance(ga.get("html"), dict) or not ex_file.exists() or "{{V:lgo" in json.dumps(ga["html"], ensure_ascii=False):
+        return
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import last_game_section as lgs
+    X = json.loads(ex_file.read_text(encoding="utf-8"))
+    boards, viewers = lgs.opening_boards(X)
+    whole, whole_viewers = lgs.opening_html(X)
+    whole = lgs.J(*whole) if whole else None
+    compare_heads = {"bg": "<h3>Спрямо предишните", "en": "<h3>Against your previous", "fr": "<h3>Face à vos"}
+    used = {}
+    for lg, text in list(ga["html"].items()):
+        head = lgs.OPENING_HEADS.get(lg)
+        i = text.find(head) if head else -1
+        if i >= 0 and viewers:  # the text is there: add the boards after it
+            j = text.find("<h3>", i)
+            j = len(text) if j < 0 else j
+            ga["html"][lg] = text[:j] + boards[lg] + text[j:]
+            used.update(viewers)
+        elif i < 0 and whole:  # no opening block yet
+            j = text.find(compare_heads.get(lg, "@@none@@"))
+            j = len(text) if j < 0 else j
+            ga["html"][lg] = text[:j] + whole[lg] + text[j:]
+            used.update(whole_viewers)
+    if used:
+        spec["viewers"] = dict(spec.get("viewers") or {}, **used)
+
+
 def nav(home, games=True):
     """Links back to the main report (and to the games list)."""
     a = f'<a href="{home}">'
@@ -101,7 +133,7 @@ def main():
 
     # one page per game; a page newer than its archive files and this script is kept (--all rebuilds every page)
     built = 0
-    newest_code = max(pathlib.Path(__file__).stat().st_mtime, (ROOT / "scripts" / "build_report.py").stat().st_mtime)
+    newest_code = max((ROOT / "scripts" / n).stat().st_mtime for n in ("game_index.py", "build_report.py", "last_game_section.py"))
     for gm in games:
         page = out / f"game-{gm['id']}.html"
         src = max((gm["folder"] / n).stat().st_mtime for n in ("analysis_spec.json", "game.pgn"))
@@ -114,6 +146,7 @@ def main():
             raw = raw.replace(old, new)
         spec = json.loads(raw)
         spec["subtitle"] = nav(a.home)
+        add_opening_boards(spec, gm["folder"])
         build(spec, gm["folder"] / "game.pgn", out / f"game-{gm['id']}.html")
 
     # the list
