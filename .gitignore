@@ -19,3 +19,4 @@ scripts/template.py
 stockfish/
 sf-download-*/
 game_analysis/
+lichess_token.txt

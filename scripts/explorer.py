@@ -38,6 +38,20 @@ import chess.pgn
 
 API = "https://explorer.lichess.ovh/lichess"
 UA = {"User-Agent": "chess-report-skill"}
+# lichess asks for a personal API token (no scopes needed): LICHESS_TOKEN, or the git-ignored file lichess_token.txt in
+# the skill folder. Create one at https://lichess.org/account/oauth/token/create
+TOKEN_FILE = pathlib.Path(__file__).resolve().parent.parent / "lichess_token.txt"
+
+
+def lichess_token():
+    tok = os.environ.get("LICHESS_TOKEN", "").strip()
+    if not tok and TOKEN_FILE.exists():
+        tok = TOKEN_FILE.read_text(encoding="utf-8").strip()
+    return tok
+
+
+if lichess_token():
+    UA["Authorization"] = "Bearer " + lichess_token()
 BANDS = [0, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500]
 SPEED = {"bullet": "bullet", "blitz": "blitz", "rapid": "rapid", "daily": "correspondence"}
 
@@ -71,6 +85,9 @@ class Explorer:
                     data = json.load(r)
                 break
             except urllib.error.HTTPError as e:
+                if e.code == 401:
+                    raise RuntimeError("lichess refused the request (401): put a lichess API token in " + str(TOKEN_FILE) +
+                             " or in LICHESS_TOKEN (create one at https://lichess.org/account/oauth/token/create, no scopes needed)")
                 if e.code == 429:
                     print("  lichess asks to slow down; waiting 60 s", flush=True)
                     time.sleep(60)
@@ -245,4 +262,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except RuntimeError as e:  # e.g. no lichess token
+        sys.exit(str(e))

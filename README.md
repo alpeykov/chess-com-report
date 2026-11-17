@@ -17,6 +17,10 @@ Builds: `windows-x86-64-universal` on Windows, `ubuntu-x86-64-avx2` on Linux, th
 
 Check: `python -c "import sys; sys.path.insert(0, 'scripts'); import sf_engine; print(sf_engine.find_stockfish())"` prints the path. Without Stockfish the report still works with the built-in material engine.
 
+### Lichess token (for the opening comparison)
+
+The lichess opening explorer now needs a personal API token. Create one at https://lichess.org/account/oauth/token/create (no scopes needed) and put it in `lichess_token.txt` in the skill folder (ignored by git) or in the `LICHESS_TOKEN` environment variable. Without it the report still works; the lichess section keeps its last data.
+
 ## Use
 
 - "Make my chess report. chess.com username: USERNAME, language: French"
