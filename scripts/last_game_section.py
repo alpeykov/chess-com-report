@@ -1,7 +1,7 @@
 """Extra blocks for the latest-game section, from OUT/last_extra.json (last_game.py).
 
     import last_game_section
-    html, viewers = last_game_section.build(json.load(open(OUT / "last_extra.json")), max_puzzles=6)
+    html, viewers = last_game_section.build(json.load(open(OUT / "last_extra.json")), max_puzzles=10)
 
 `html` is a {"bg", "en", "fr"} dict to append to game_analysis["html"]; `viewers` are the puzzle boards
 ({{V:lgp1}} ...) to add to the spec's "viewers". GOTO buttons point at the game viewer ("game").
@@ -127,7 +127,7 @@ def clock_txt(sec):
     return f"{int(sec) // 60}:{int(sec) % 60:02d}"
 
 
-def build(X, max_puzzles=6):
+def build(X, max_puzzles=10):
     white = X["white"]
     side = T("белите", "White", "les Blancs") if white else T("черните", "Black", "les Noirs")
     Side = T("Белите", "White", "Les Blancs") if white else T("Черните", "Black", "Les Noirs")
