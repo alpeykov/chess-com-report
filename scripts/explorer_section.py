@@ -1,7 +1,7 @@
 """Report section from OUT/explorer.json (explorer.py): your openings compared with the lichess database.
 
     import explorer_section
-    sec, viewers = explorer_section.build(json.load(open(OUT / "explorer.json")), max_rows=6, boards=2)
+    sec, viewers = explorer_section.build(json.load(open(OUT / "explorer.json")), max_rows=6)
 
 Returns a section dict for report_spec.json ({"id": "explorer", ...}, every text {"bg", "en", "fr"}) and the
 viewers it refers to ({{V:ex1}} ...); add them to the spec's "viewers". Every number comes from the file.
@@ -94,7 +94,8 @@ def best_note(w, fr):
     return J(*parts)
 
 
-def build(E, max_rows=6, boards=2):
+def build(E, max_rows=6, boards=None):
+    """boards: how many of the weaker-choice rows get a board (default: all shown rows)."""
     p, st = E["params"], E["exit_stats"]
     sp = [SPEEDS.get(s, (s, s, s)) for s in p["speeds"].split(",")]
     speeds = T(", ".join(s[0] for s in sp), ", ".join(s[1] for s in sp), ", ".join(s[2] for s in sp))
@@ -169,19 +170,19 @@ def build(E, max_rows=6, boards=2):
         for i, w in enumerate(weak, 1):
             m, bd = w["mine"][0], w["best_db"]
             pos = line_txt(w["line"]) if w["line"] else T("(начална позиция)", "(start position)", "(position initiale)")
-            html += ["<tr><td>", pos, "</td><td>", mv_cells(w["ply"], m["san"]), f'</td><td class="num">{m["times"]} / <span class="tag {tag(m["score"])}">', P(m["score"]),
+            html += [f"<tr><td>{i}. ", pos, "</td><td>", mv_cells(w["ply"], m["san"]), f'</td><td class="num">{m["times"]} / <span class="tag {tag(m["score"])}">', P(m["score"]),
                      '</span></td><td class="num">', P(m["db"][2]), "</td><td>", mv_cells(w["ply"], w["best"]), '</td><td class="num"><b>', P(bd[2]), "</b> ",
                      J('<span class="hint">(', T("играе се в ", "played in ", "joué dans "), P(bd[1]), ")</span>"), "</td></tr>"]
         html.append("</table></div>")
         # boards for the largest ones
         bl = []
-        for i, w in enumerate(weak[:boards], 1):
+        for i, w in enumerate(weak[:len(weak) if boards is None else boards], 1):
             vid = f"ex{i}"
             fr = len(w["line"])
             m = w["mine"][0]
             viewers[vid] = {
                 "moves": " ".join(w["line"] + [w["best"]]), "orientation": "white" if w["white"] else "black", "start_index": fr,
-                "title": J(T("Позиция след ", "Position after ", "Position après "), line_txt(w["line"]) if w["line"] else T("(начална позиция)", "(start position)", "(position initiale)")),
+                "title": J(f"{i}. ", T("Позиция след ", "Position after ", "Position après "), line_txt(w["line"]) if w["line"] else T("(начална позиция)", "(start position)", "(position initiale)")),
                 "notes": {str(fr): J(T("Вие: ", "You: ", "Vous : "), move_txt(fr, m["san"]), f" ({m['times']}×, ", T("база ", "database ", "base "), P(m["db"][2]),
                                      T("). По-добре: ", "). Better: ", "). Mieux : "), move_txt(fr, w["best"]), " (", P(w["best_db"][2]), ").",
                                      # the most played move too, when it is neither yours nor the best one
@@ -206,11 +207,24 @@ def build(E, max_rows=6, boards=2):
                  str(p["min_games"]), T(" партии), изиграни поне два пъти:</p>", " games), played at least twice:</p>", " parties), joués au moins deux fois :</p>"),
                  '<div class="scroll"><table><tr><th>', T("Позиция след", "Position after", "Position après"), "</th><th>", T("Вашият ход", "Your move", "Votre coup"),
                  "</th><th>", T("Партии", "Games", "Parties"), "</th><th>", T("Успеваемост", "Score", "Score"), "</th></tr>"]
-        for x in nov:
+        for i, x in enumerate(nov, 1):
             pos = line_txt(x["line"]) if x["line"] else T("(начална позиция)", "(start position)", "(position initiale)")
-            html += ["<tr><td>", pos, "</td><td>", mv_cells(len(x["line"]), x["san"]), f'</td><td class="num">{x["games"]}</td>',
+            html += [f"<tr><td>{i}. ", pos, "</td><td>", mv_cells(len(x["line"]), x["san"]), f'</td><td class="num">{x["games"]}</td>',
                      f'<td class="num"><span class="tag {tag(x["score"])}">', P(x["score"]), "</span></td></tr>"]
         html.append("</table></div>")
+        bl = []
+        for i, x in enumerate(nov, 1):
+            vid, fr = f"nx{i}", len(x["line"])
+            viewers[vid] = {
+                "moves": " ".join(x["line"] + [x["san"]]), "orientation": "white" if x["white"] else "black", "start_index": fr,
+                "title": J(f"{i}. ", T("Позиция след ", "Position after ", "Position après "), line_txt(x["line"]) if x["line"] else T("(начална позиция)", "(start position)", "(position initiale)")),
+                "notes": {str(fr): J(T("Вие: ", "You: ", "Vous : "), move_txt(fr, x["san"]), f" ({x['games']}×, ",
+                                     T("успеваемост ", "score ", "score "), P(x["score"]), T("). Играчите на вашето ниво почти не го играят.",
+                                     "). Players at your level hardly ever play it.", "). Les joueurs de votre niveau ne le jouent presque jamais."))},
+                "arrows": {str(fr): [arrow(x["line"], x["san"], "red")]},
+            }
+            bl.append(f"{{{{V:{vid}}}}}")
+        html += ['<div class="vgrid">', "".join(bl), "</div>"]
 
     sec = {"id": "explorer", "title": T("Дебютите в базата на lichess", "Your openings in the lichess database", "Vos ouvertures dans la base lichess"),
            "toc_title": T("База lichess", "Lichess database", "Base lichess"), "html": J(*html)}
