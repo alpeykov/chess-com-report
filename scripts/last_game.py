@@ -167,6 +167,8 @@ def main():
             if r.get("class") not in ("mistake", "blunder") and not missed_mate and drop < 3:
                 continue
             by_material = r.get("class") not in ("mistake", "blunder") and not missed_mate
+            if by_material and min(ev[ply], ev[ply + 1]) >= 97:
+                continue  # completely won before and after: a pawn or piece given back there is no puzzle
             if by_material:  # still winning (or already lost), but a piece given away
                 r = dict(r, **{"class": "blunder" if drop >= 5 else "mistake"})
             played = move_info(b, moves[ply])
