@@ -251,7 +251,7 @@ details.fold>summary h2{display:flex;align-items:center;gap:10px}
 details.fold>summary h2::after{content:"";width:9px;height:9px;margin-left:auto;flex:none;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);transition:transform .2s}
 details.fold:not([open])>summary h2::after{transform:rotate(-45deg)}
 .goto{font:inherit;font-weight:700;color:var(--accent);background:none;border:0;border-bottom:1px dashed currentColor;padding:0;cursor:pointer}
-.goto:hover{color:var(--ink)}.san{color:var(--muted);font-size:.85em;font-family:var(--mono)}code{font:600 13px var(--mono);color:var(--accent-ink)}html{scroll-behavior:smooth;zoom:.8}
+.goto:hover{color:var(--ink)}.san{color:var(--muted);font-size:.85em;font-family:var(--mono)}code{font:600 13px var(--mono);color:var(--accent-ink)}html{scroll-behavior:smooth;zoom:.9}
 .chart{width:100%;height:auto;display:block}.chart .grid{stroke:var(--grid)}.chart .axis{stroke:var(--axis)}
 .chart .tick{fill:var(--muted);font:12px var(--font)}.chart .line{fill:none;stroke:var(--series);stroke-width:1.8}
 .chart .dot.win{fill:var(--good)}.chart .dot.loss{fill:var(--bad)}.chart .dot.draw{fill:var(--muted)}
