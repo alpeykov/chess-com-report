@@ -12,6 +12,7 @@ name next to these pages: index.html for the published artifact, report.html in 
 """
 import argparse
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -131,12 +132,14 @@ def main():
     base = json.loads((games[0]["folder"] / "analysis_spec.json").read_text(encoding="utf-8"))
     langs = base.get("langs") or ["en"]
 
+    import mates_section  # the "Mates" block, for games archived with mate_check.json (analysed from 2026-11-19 on)
+
     # one page per game; a page newer than its archive files and this script is kept (--all rebuilds every page)
     built = 0
-    newest_code = max((ROOT / "scripts" / n).stat().st_mtime for n in ("game_index.py", "build_report.py", "last_game_section.py"))
+    newest_code = max((ROOT / "scripts" / n).stat().st_mtime for n in ("game_index.py", "build_report.py", "last_game_section.py", "mates_section.py", "mate_check.py"))
     for gm in games:
         page = out / f"game-{gm['id']}.html"
-        src = max((gm["folder"] / n).stat().st_mtime for n in ("analysis_spec.json", "game.pgn"))
+        src = max((gm["folder"] / n).stat().st_mtime for n in ("analysis_spec.json", "game.pgn", "mate_check.json") if (gm["folder"] / n).exists())
         if not a.all and page.exists() and page.stat().st_mtime > max(src, newest_code):
             continue
         built += 1
@@ -147,6 +150,7 @@ def main():
         spec = json.loads(raw)
         spec["subtitle"] = nav(a.home)
         add_opening_boards(spec, gm["folder"])
+        mates_section.add_to_spec(spec, gm["folder"], gm["folder"] / "game.pgn")
         build(spec, gm["folder"] / "game.pgn", out / f"game-{gm['id']}.html")
 
     # the list
