@@ -101,13 +101,14 @@ def main():
         start = chess.Board(first["fen"])
         best = fastest_line(eng, start, first["mate_in"])
         mated = last["mate_after"] == 0
+        ended = not mated and last["mate_after"] is not None   # the game ended (resignation, time) with the mate still on
         earliest = first["move_no"] + first["mate_in"] - 1
         res = dict(side=e["side"], ply=first["ply"], move_no=first["move_no"], white=first["white"],
                    mate_in=first["mate_in"], fastest=best, played=[r["played"] for r in e["rows"]],
-                   mated=mated, end_ply=last["ply"], earliest_mate_move=earliest,
+                   mated=mated, ended=ended, end_ply=last["ply"], earliest_mate_move=earliest,
                    mate_move=last["move_no"] if mated else None,
                    lost_moves=(last["move_no"] - earliest) if mated else None,
-                   missed=None if mated else dict(ply=last["ply"], move_no=last["move_no"], played=last["played"],
+                   missed=None if (mated or ended) else dict(ply=last["ply"], move_no=last["move_no"], played=last["played"],
                                                   chance_after=last["chance_after"]),
                    steps=[dict(ply=r["ply"], move_no=r["move_no"], played=r["played"], mate_in=r["mate_in"],
                                mate_after=r["mate_after"]) for r in e["rows"]])
@@ -127,6 +128,8 @@ def main():
                   f"{'мат' if s['mate_after']==0 else (('мат в ' + str(s['mate_after'])) if s['mate_after'] is not None else 'няма мат')}  [{tag}]")
         if e["mated"]:
             print(f"   мат на ход {e['mate_move']}; най-бързо мат на ход {e['earliest_mate_move']} (изгубени {e['lost_moves']} хода)")
+        elif e["ended"]:
+            print(f"   партията свърши (предаване/време), матът оставаше на дъската")
         else:
             print(f"   матът е пропуснат с {mv(e['missed']['move_no'], e['white'], e['missed']['played'])}, шанс след хода {e['missed']['chance_after']}%")
     if not out:
@@ -139,7 +142,7 @@ def main():
         gid = g.headers.get("Link", "game").rstrip("/").split("/")[-1]
         flip = not me_white
         for e in out:
-            if e["side"] != "me" or (e["mated"] and not e["lost_moves"]):
+            if e["side"] != "me" or e.get("ended") or (e["mated"] and not e["lost_moves"]):
                 continue
             base = os.path.join(a.gifs, f"mate-{gid}-{e['move_no']}")
             mvn = f"{e['move_no']}." if e["white"] else f"{e['move_no']}..."

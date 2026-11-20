@@ -15,7 +15,6 @@ import chess.pgn
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from make_gif import NAMES, describe  # noqa: E402
 
 VAL = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
 TX = {
@@ -42,6 +41,11 @@ TX = {
                        fr="L'adversaire avait un {n} contre vous et l'a manqué avec {mv}."),
     "opp_mated": dict(bg="Противникът ви направи мат на ход {m}.", en="The opponent mated you on move {m}.",
                       fr="L'adversaire vous a maté au coup {m}."),
+    "ended": dict(bg="Партията свърши (противникът се предаде или изтече времето), докато матът беше на дъската.",
+                  en="The game ended (the opponent resigned or ran out of time) with the mate still on the board.",
+                  fr="La partie s'est terminée (abandon ou temps) alors que le mat était encore sur l'échiquier."),
+    "opp_ended": dict(bg="Противникът имаше {n} срещу вас, когато партията свърши.", en="The opponent had {n} against you when the game ended.",
+                      fr="L'adversaire avait un {n} contre vous à la fin de la partie."),
     "gif_played": dict(bg="Изиграно", en="Played", fr="Joué"),
     "gif_fast": dict(bg="Най-бързо", en="Fastest", fr="Le plus rapide"),
     "end": dict(bg=" – мат", en=" – mate", fr=" – mat"),
@@ -73,16 +77,18 @@ def _material(board, me):
     return f"{s:+d}" if s else "0"
 
 
+def _san(board, move):
+    """'37...Rab8' – plain SAN with the move number (the builder adds the piece names to SAN in the text)."""
+    n = board.fullmove_number
+    return (f"{n}." if board.turn == chess.WHITE else f"{n}...") + board.san(move)
+
+
 def _line(start, sans, lg):
-    """The fastest line: the first move as a piece name + SAN, then SAN with move numbers."""
+    """The fastest line in SAN with move numbers."""
     b = start.copy(); out = []
     for i, s in enumerate(sans):
         m = b.parse_san(s)
-        if i == 0:
-            out.append(describe(b, m, "en" if lg == "fr" else lg))
-        else:
-            n = b.fullmove_number
-            out.append((f"{n}." if b.turn == chess.WHITE else (f"{n}..." if i == 0 else "")) + s)
+        out.append(_san(b, m) if (i == 0 or b.turn == chess.WHITE) else s)
         b.push(m)
     return " ".join(out) + (TX["end"][lg] if b.is_checkmate() else "")
 
@@ -109,23 +115,32 @@ def block(folder, pgn, lg):
         mvno = f'{e["move_no"]}.' if e["white"] else f'{e["move_no"]}...'
         fastest = _line(start, e["fastest"], lg)
         if e["side"] == "me":
-            if e["mated"] and not e["lost_moves"]:
+            if e.get("ended"):
+                what = TX["ended"][lg]
+            elif e["mated"] and not e["lost_moves"]:
                 what = TX["fast"][lg].format(m=e["mate_move"])
             elif e["mated"]:
                 what = TX["slow"][lg].format(m=e["mate_move"], e=e["earliest_mate_move"], k=e["lost_moves"])
             else:
                 ms = e["missed"]
-                b = _board_at(moves, ms["ply"]); mv = describe(b, moves[ms["ply"]], "en" if lg == "fr" else lg)
+                b = _board_at(moves, ms["ply"]); mv = _san(b, moves[ms["ply"]])
                 b.push(moves[ms["ply"]])
                 what = TX["missed"][lg].format(mv=mv, ch=ms["chance_after"], mat=_material(b, me))
         else:
-            if e["mated"]:
+            if e.get("ended"):
+                what = TX["opp_ended"][lg].format(n=TX["matein"][lg].format(n=e["mate_in"]))
+            elif e["mated"]:
                 what = TX["opp_mated"][lg].format(m=e["mate_move"])
             else:
                 ms = e["missed"]; b = _board_at(moves, ms["ply"])
                 what = TX["opp_missed"][lg].format(n=TX["matein"][lg].format(n=e["mate_in"]),
-                                                   mv=describe(b, moves[ms["ply"]], "en" if lg == "fr" else lg))
-        cls = ("w" if not e["lost_moves"] else "n") if e["side"] == "me" and e["mated"] else ("l" if e["side"] == "me" else "n")
+                                                   mv=_san(b, moves[ms["ply"]]))
+        if e["side"] != "me":
+            cls = "n"
+        elif e.get("ended") or (e["mated"] and not e["lost_moves"]):
+            cls = "w"
+        else:
+            cls = "n" if e["mated"] else "l"
         rows.append(f'<tr><td class="num">{mvno}</td><td><span class="tag {cls}">{TX["matein"][lg].format(n=e["mate_in"])}</span></td>'
                     f'<td>{what}</td><td>{fastest}</td></tr>')
         base = folder / f'mate-{gid}-{e["move_no"]}'
