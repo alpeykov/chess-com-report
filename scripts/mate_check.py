@@ -23,14 +23,48 @@ DEPTH = 22
 DEPTH_MATE = 32
 
 
-def mate_in(engine, board):
-    """Mate distance for the side to move (>0 it mates, <0 it gets mated, None no mate)."""
-    if board.is_checkmate():
-        return -0
+_CACHE = {}
+
+
+def _analyse(engine, board):
     info = engine.analyse(board, chess.engine.Limit(depth=DEPTH))
     if info["score"].is_mate():   # mate distances at low depth are rough: look deeper
         info = engine.analyse(board, chess.engine.Limit(depth=DEPTH_MATE))
     return info["score"].pov(board.turn).mate(), info
+
+
+def prefill(boards, jobs):
+    """Analyse many positions at once: several single-thread engines in parallel (Stockfish with many threads at a
+    fixed depth is slower than one thread, so the speed comes from running positions side by side)."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    local, engines, lock = threading.local(), [], threading.Lock()
+
+    def work(b):
+        if not hasattr(local, "eng"):
+            local.eng = chess.engine.SimpleEngine.popen_uci(find_stockfish())
+            local.eng.configure({"Threads": 1, "Hash": 64})
+            with lock:
+                engines.append(local.eng)
+        return b.fen(), _analyse(local.eng, b)
+    todo = {b.fen(): b for b in boards if not b.is_checkmate() and b.fen() not in _CACHE}
+    try:
+        with ThreadPoolExecutor(max_workers=jobs) as ex:
+            for fen, r in ex.map(work, todo.values()):
+                _CACHE[fen] = r
+    finally:
+        for e in engines:
+            e.quit()
+
+
+def mate_in(engine, board):
+    """Mate distance for the side to move (>0 it mates, <0 it gets mated, None no mate), cached per position."""
+    if board.is_checkmate():
+        return -0, None
+    key = board.fen()
+    if key not in _CACHE:
+        _CACHE[key] = _analyse(engine, board)
+    return _CACHE[key]
 
 
 def fastest_line(engine, board, n):
@@ -39,7 +73,10 @@ def fastest_line(engine, board, n):
     for _ in range(2 * n + 2):
         if b.is_game_over():
             break
-        info = engine.analyse(b, chess.engine.Limit(depth=DEPTH))
+        left = n - len(line) // 2   # moves of the mating side still to play
+        info = engine.analyse(b, chess.engine.Limit(mate=max(1, left))) if left > 0 else {}
+        if not info.get("pv"):     # the mate search found nothing: plain search
+            info = engine.analyse(b, chess.engine.Limit(depth=DEPTH))
         m = info["pv"][0]
         line.append(b.san(m)); b.push(m)
     return line
@@ -56,19 +93,25 @@ def main():
     ap.add_argument("--pgn", required=True)
     ap.add_argument("--out")
     ap.add_argument("--gifs", help="folder for played/fastest GIFs")
+    ap.add_argument("--jobs", type=int, default=max(1, min(8, (os.cpu_count() or 2) // 2)),
+                    help="positions analysed side by side (one single-thread engine each)")
     a = ap.parse_args()
 
     g = chess.pgn.read_game(open(a.pgn, encoding="utf-8"))
     me_white = g.headers.get("White", "").lower() == a.username.lower()
     me = chess.WHITE if me_white else chess.BLACK
     moves = list(g.mainline_moves())
+    b = g.board(); boards = [b.copy()]
+    for m in moves:
+        b.push(m); boards.append(b.copy())
+    prefill(boards, a.jobs)
     eng = chess.engine.SimpleEngine.popen_uci(find_stockfish())
+    eng.configure({"Hash": 128})
 
     b = g.board()
     rows = []  # per ply where the side to move had a mate
     for ply, m in enumerate(moves):
-        r = mate_in(eng, b)
-        mi, info = r if isinstance(r, tuple) else (r, None)
+        mi, info = mate_in(eng, b)
         if mi is not None and mi > 0:
             san = b.san(m)
             after = b.copy(); after.push(m)
