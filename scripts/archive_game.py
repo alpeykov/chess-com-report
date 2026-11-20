@@ -6,7 +6,7 @@ Creates game_analysis/<date>_<white>-<black>_<game id>/ with
   game.pgn            the game (OUT/last.pgn)
   sf_last.json        Stockfish evaluations (when present)
   last_extra.json     puzzles, threats, clock, opponent's mistakes, opening, comparison (when present)
-  mate_check.json     forced mates (mate_check.py, when it was run for this game) and its mate-<id>-*.gif
+  mate_check.json     forced mates (mate_check.py, when it was run for this game)
   analysis_spec.json  the spec's game_analysis and the viewers it uses
   analysis.html       that analysis alone as a page (board, table, puzzles; BG/EN/FR like the report)
 Run it after the report is rebuilt; running it again for the same game overwrites that folder.
@@ -53,14 +53,10 @@ def main():
     for name in ("sf_last.json", "last_extra.json"):
         if (out / name).exists():
             shutil.copyfile(out / name, dest / name)
-    # mate_check.py's result for this game (when it was run after last.pgn was fetched) and its GIFs
+    # mate_check.py's result for this game (when it was run after last.pgn was fetched)
     mc = out / "mate_check.json"
     if mc.exists() and mc.stat().st_mtime >= (out / "last.pgn").stat().st_mtime:
         shutil.copyfile(mc, dest / "mate_check.json")
-        gid = dest.name.rsplit("_", 1)[-1]
-        for d in (out, out.parent):
-            for gif in d.glob(f"mate-{gid}-*.gif"):
-                shutil.copyfile(gif, dest / gif.name)
     text = json.dumps(ga, ensure_ascii=False)
     used = set(re.findall(r"\{\{V:([\w-]+)\}\}", text))
     mini = {k: spec[k] for k in ("langs", "lang", "piece_words", "labels") if k in spec}

@@ -1,10 +1,9 @@
 """The "Mates" block of a game page, from mate_check.py's output.
 
-    ensure(folder, username)          run mate_check.py for an archived game (mate_check.json + GIFs in the folder)
+    ensure(folder, username)          run mate_check.py for an archived game (mate_check.json in the folder)
     add_to_spec(spec, folder, pgn)    put the block into game_analysis.html of every language, right after the
-                                      table of the player's mistakes (the first table), GIFs inline as data URIs
+                                      table of the player's mistakes (the first table), with step-through boards for the played and the fastest line
 """
-import base64
 import json
 import pathlib
 import subprocess
@@ -46,19 +45,23 @@ TX = {
                   fr="La partie s'est terminée (abandon ou temps) alors que le mat était encore sur l'échiquier."),
     "opp_ended": dict(bg="Противникът имаше {n} срещу вас, когато партията свърши.", en="The opponent had {n} against you when the game ended.",
                       fr="L'adversaire avait un {n} contre vous à la fin de la partie."),
-    "gif_played": dict(bg="Изиграно", en="Played", fr="Joué"),
-    "gif_fast": dict(bg="Най-бързо", en="Fastest", fr="Le plus rapide"),
+    "v_played": dict(bg="Ход {m} · изиграно", en="Move {m} · played", fr="Coup {m} · joué"),
+    "v_fast": dict(bg="Ход {m} · най-бързият мат", en="Move {m} · the fastest mate", fr="Coup {m} · le mat le plus rapide"),
+    "n_start": dict(bg="Мат в {n}. Местете ходовете напред и назад.", en="Mate in {n}. Step the moves forward and back.",
+                    fr="Mat en {n}. Avancez et reculez dans les coups."),
+    "n_mate": dict(bg="Мат.", en="Mate.", fr="Mat."),
+    "n_missed": dict(bg="Тук матът беше пропуснат.", en="The mate was missed here.", fr="Le mat a été manqué ici."),
     "end": dict(bg=" – мат", en=" – mate", fr=" – mat"),
 }
 
 
 def ensure(folder, username):
-    """mate_check.json (and the GIFs) for an archived game; returns True when it had to run."""
+    """mate_check.json for an archived game; returns True when it had to run."""
     folder = pathlib.Path(folder)
     if (folder / "mate_check.json").exists():
         return False
     r = subprocess.run([sys.executable, str(HERE / "mate_check.py"), username, "--pgn", str(folder / "game.pgn"),
-                        "--out", str(folder / "mate_check.json"), "--gifs", str(folder)],
+                        "--out", str(folder / "mate_check.json")],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode:
         raise RuntimeError(r.stdout + r.stderr)
@@ -93,21 +96,19 @@ def _line(start, sans, lg):
     return " ".join(out) + (TX["end"][lg] if b.is_checkmate() else "")
 
 
-def _gif(path):
-    return "data:image/gif;base64," + base64.b64encode(pathlib.Path(path).read_bytes()).decode()
-
-
-def block(folder, pgn, lg):
+def block(folder, pgn, lg, viewers=None):
     folder = pathlib.Path(folder)
     eps = json.loads((folder / "mate_check.json").read_text(encoding="utf-8"))
     g = chess.pgn.read_game(open(pgn, encoding="utf-8"))
     moves = list(g.mainline_moves())
-    gid = g.headers.get("Link", "game").rstrip("/").split("/")[-1]
     h = f'<h3>{TX["head"][lg]}</h3>'
     if not eps:
         return h + f'<p class="hint">{TX["none"][lg]}</p>'
     me = None
-    rows, gifs = [], []
+    rows, boards = [], []
+    sans, b0 = [], g.board()
+    for m in moves:
+        sans.append(b0.san(m)); b0.push(m)
     for e in eps:
         start = _board_at(moves, e["ply"])
         if me is None:
@@ -143,29 +144,41 @@ def block(folder, pgn, lg):
             cls = "n" if e["mated"] else "l"
         rows.append(f'<tr><td class="num">{mvno}</td><td><span class="tag {cls}">{TX["matein"][lg].format(n=e["mate_in"])}</span></td>'
                     f'<td>{what}</td><td>{fastest}</td></tr>')
-        base = folder / f'mate-{gid}-{e["move_no"]}'
-        if e["side"] == "me" and (base.with_name(base.name + "-played.gif")).exists():
-            gifs.append(f'<figure class="mategif"><img alt="" src="{_gif(base.with_name(base.name + "-played.gif"))}">'
-                        f'<figcaption>{mvno} {TX["gif_played"][lg]}</figcaption></figure>'
-                        f'<figure class="mategif"><img alt="" src="{_gif(base.with_name(base.name + "-fastest.gif"))}">'
-                        f'<figcaption>{mvno} {TX["gif_fast"][lg]}</figcaption></figure>')
+        if e["side"] == "me" and not e.get("ended") and not (e["mated"] and not e["lost_moves"]) and viewers is not None:
+            vp, vf = f'mate-{e["move_no"]}-played', f'mate-{e["move_no"]}-fastest'
+            orient = "white" if me == chess.WHITE else "black"
+            end = e["end_ply"] + 1 if e["mated"] else min(e["end_ply"] + 5, len(moves))
+            start_note = {k: TX["n_start"][k].format(n=e["mate_in"]) for k in TX["n_start"]}
+            notes_p = {str(e["ply"]): start_note}
+            if e["mated"]:
+                notes_p[str(end)] = dict(TX["n_mate"])
+            else:
+                notes_p[str(e["missed"]["ply"] + 1)] = dict(TX["n_missed"])
+            viewers[vp] = {"moves": " ".join(sans[:end]), "orientation": orient, "from_ply": e["ply"], "to_ply": end,
+                           "title": {k: TX["v_played"][k].format(m=mvno) for k in TX["v_played"]}, "notes": notes_p}
+            fl = sans[:e["ply"]] + e["fastest"]
+            viewers[vf] = {"moves": " ".join(fl), "orientation": orient, "from_ply": e["ply"],
+                           "title": {k: TX["v_fast"][k].format(m=mvno) for k in TX["v_fast"]},
+                           "notes": {str(e["ply"]): start_note, str(len(fl)): dict(TX["n_mate"])}}
+            boards.append(f"{{{{V:{vp}}}}}{{{{V:{vf}}}}}")
     c = TX["cols"][lg]
     return (h + f'<p class="hint">{TX["intro"][lg]}</p>'
-            + '<style>.mategifs{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px}.mategif{margin:0;max-width:100%}'
-              '.mategif img{max-width:100%;height:auto;border-radius:8px;display:block}.mategif figcaption{font-size:13px;color:var(--muted);margin-top:4px}</style>'
             + '<div class="scroll"><table><tr>' + "".join(f"<th>{x}</th>" for x in c) + "</tr>" + "".join(rows) + "</table></div>"
-            + (f'<div class="mategifs">{"".join(gifs)}</div>' if gifs else ""))
+            + "".join(boards))
 
 
 def add_to_spec(spec, folder, pgn):
     ga = spec.get("game_analysis") or {}
     if not isinstance(ga.get("html"), dict) or not (pathlib.Path(folder) / "mate_check.json").exists():
         return
+    viewers = {}
     for lg, text in list(ga["html"].items()):
-        if lg not in TX["head"] or 'class="mategifs"' in text or f'<h3>{TX["head"][lg]}</h3>' in text:
+        if lg not in TX["head"] or f'<h3>{TX["head"][lg]}</h3>' in text:
             continue
         i = text.find("</table>")
         i = len(text) if i < 0 else i + len("</table>")
         if text[i:].startswith("</div>"):  # the table's scroll wrapper
             i += len("</div>")
-        ga["html"][lg] = text[:i] + block(folder, pgn, lg) + text[i:]
+        ga["html"][lg] = text[:i] + block(folder, pgn, lg, viewers) + text[i:]
+    if viewers:
+        spec["viewers"] = dict(spec.get("viewers") or {}, **viewers)
