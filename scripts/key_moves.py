@@ -48,7 +48,7 @@ def bg_move(board, move):
     if p.piece_type == chess.PAWN:
         rest = san.replace("x", " взима ", 1) if "x" in san else san   # 'e взима d5'
     else:
-        rest = san[1:].replace("x", "взима ", 1)
+        rest = san[1:].replace("x", " взима ", 1).lstrip()   # 'Топ b взима c8' for Rbxc8
     return f"{num}{name} {rest} ({san})"
 
 
