@@ -9,6 +9,8 @@ reported. Without a network connection, or when the skill folder is not a git cl
 analysis goes on with the installed version.
 """
 import argparse
+import sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 import pathlib
 import subprocess
 
